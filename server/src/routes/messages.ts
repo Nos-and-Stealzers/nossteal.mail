@@ -4,6 +4,7 @@ import { pool } from "../db/pool.js";
 import { requireAuth, type AuthedRequest } from "../middleware/auth.js";
 import { sendMail } from "../services/mailSender.js";
 import { sendMailDirect } from "../services/directMailSender.js";
+import { findLocalMailboxes, deliverToLocalMailbox } from "../services/internalDelivery.js";
 
 export const messagesRouter = Router();
 messagesRouter.use(requireAuth);
@@ -60,53 +61,67 @@ messagesRouter.post("/send", async (req: AuthedRequest, res) => {
   const account = accountResult.rows[0];
   if (!account) return res.status(404).json({ error: "Email account not found" });
 
-  if (account.account_kind === "native") {
-    const domainResult = await pool.query("SELECT * FROM domains WHERE id = $1", [account.domain_id]);
-    const domain = domainResult.rows[0];
-    if (!domain) return res.status(500).json({ error: "Native account has no associated domain" });
-
-    const results = await sendMailDirect({
+  // 1. Deliver to any recipients that are mailboxes on THIS instance directly —
+  //    no external SMTP, port 25, or public DNS needed. This is what makes a
+  //    small self-hosted setup (e.g. you and a friend) work with zero infra.
+  const allRecipients = [...body.to, ...(body.cc ?? [])];
+  const localMailboxes = await findLocalMailboxes(allRecipients);
+  const internal: { address: string; status: "delivered" | "over_quota" }[] = [];
+  for (const [address, mailbox] of localMailboxes) {
+    const status = await deliverToLocalMailbox(mailbox, {
       fromAddress: account.email_address,
-      domainName: domain.domain_name,
-      dkimSelector: domain.dkim_selector,
-      dkimPrivateKeyEncrypted: domain.dkim_private_key_encrypted,
-      to: body.to,
-      cc: body.cc,
       subject: body.subject,
       html: body.html,
       text: body.text,
       inReplyTo: body.inReplyTo,
     });
-
-    const anySent = results.some((r) => r.status === "sent");
-    if (anySent) {
-      await pool.query(
-        `INSERT INTO messages (
-           user_id, email_account_id, message_id, from_address, to_addresses, cc_addresses,
-           subject, date_sent, date_received, body_html, body_plaintext, folder, is_sent, is_read, in_reply_to
-         ) VALUES ($1,$2,$3,$4,$5,$6,$7,NOW(),NOW(),$8,$9,'Sent',TRUE,TRUE,$10)`,
-        [
-          req.userId,
-          account.id,
-          null,
-          account.email_address,
-          body.to,
-          body.cc ?? null,
-          body.subject,
-          body.html ?? null,
-          body.text ?? null,
-          body.inReplyTo ?? null,
-        ]
-      );
-    }
-
-    const status = anySent ? 201 : 502;
-    return res.status(status).json({ results });
+    internal.push({ address, status });
   }
 
-  try {
-    const info = await sendMail(account, body);
+  // 2. Anything not hosted here goes out via the normal path.
+  const isLocal = (a: string) => localMailboxes.has(a.toLowerCase());
+  const remoteTo = body.to.filter((a) => !isLocal(a));
+  const remoteCc = (body.cc ?? []).filter((a) => !isLocal(a));
 
+  let remote: unknown = null;
+  let remoteError: string | null = null;
+  let remoteSent = false;
+
+  if (remoteTo.length || remoteCc.length) {
+    try {
+      if (account.account_kind === "native") {
+        const domainResult = await pool.query("SELECT * FROM domains WHERE id = $1", [account.domain_id]);
+        const domain = domainResult.rows[0];
+        if (!domain) return res.status(500).json({ error: "Native account has no associated domain" });
+        const results = await sendMailDirect({
+          fromAddress: account.email_address,
+          domainName: domain.domain_name,
+          dkimSelector: domain.dkim_selector,
+          dkimPrivateKeyEncrypted: domain.dkim_private_key_encrypted,
+          to: remoteTo,
+          cc: remoteCc,
+          subject: body.subject,
+          html: body.html,
+          text: body.text,
+          inReplyTo: body.inReplyTo,
+        });
+        remote = results;
+        remoteSent = results.some((r) => r.status === "sent");
+      } else {
+        const info = await sendMail(account, { ...body, to: remoteTo, cc: remoteCc });
+        remote = { messageId: info.messageId };
+        remoteSent = true;
+      }
+    } catch (err) {
+      remoteError = (err as Error).message;
+    }
+  }
+
+  const internalDelivered = internal.some((r) => r.status === "delivered");
+  const delivered = internalDelivered || remoteSent;
+
+  // 3. Save a copy in the sender's Sent folder if anything went out.
+  if (delivered) {
     await pool.query(
       `INSERT INTO messages (
          user_id, email_account_id, message_id, from_address, to_addresses, cc_addresses,
@@ -115,7 +130,7 @@ messagesRouter.post("/send", async (req: AuthedRequest, res) => {
       [
         req.userId,
         account.id,
-        info.messageId ?? null,
+        null,
         account.email_address,
         body.to,
         body.cc ?? null,
@@ -125,9 +140,10 @@ messagesRouter.post("/send", async (req: AuthedRequest, res) => {
         body.inReplyTo ?? null,
       ]
     );
-
-    res.status(201).json({ messageId: info.messageId });
-  } catch (err) {
-    res.status(502).json({ error: "Send failed", detail: (err as Error).message });
   }
+
+  if (!delivered && remoteError) {
+    return res.status(502).json({ error: "Send failed", detail: remoteError, internal });
+  }
+  res.status(delivered ? 201 : 502).json({ delivered, internal, remote, remoteError });
 });
