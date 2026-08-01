@@ -2,9 +2,11 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { api, type EmailAccountSummary, type Domain, type AiProvider } from "@/lib/api";
+import { api, type EmailAccountSummary, type AiProvider } from "@/lib/api";
 import { AppShell } from "@/components/AppShell";
 import { formatBytes, usagePercent } from "@/lib/format";
+
+type UsableDomain = { id: string; domain_name: string; is_system: boolean };
 
 const emptyForm = {
   emailAddress: "",
@@ -25,7 +27,7 @@ type Tab = "external" | "native" | "ai";
 
 export default function AccountsPage() {
   const [accounts, setAccounts] = useState<EmailAccountSummary[]>([]);
-  const [domains, setDomains] = useState<Domain[]>([]);
+  const [domains, setDomains] = useState<UsableDomain[]>([]);
   const [providers, setProviders] = useState<AiProvider[]>([]);
   const [tab, setTab] = useState<Tab>("external");
   const [form, setForm] = useState(emptyForm);
@@ -41,7 +43,7 @@ export default function AccountsPage() {
   async function refresh() {
     const [{ accounts }, { domains }, { providers }] = await Promise.all([
       api.listAccounts(),
-      api.listDomains(),
+      api.listUsableDomains(),
       api.listAiProviders(),
     ]);
     setAccounts(accounts);

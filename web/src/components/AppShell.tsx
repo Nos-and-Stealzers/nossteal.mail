@@ -22,10 +22,7 @@ const groups: { title: string; items: NavItem[] }[] = [
   },
   {
     title: "Accounts",
-    items: [
-      { href: "/accounts", label: "Email accounts", icon: Users },
-      { href: "/domains", label: "Domains", icon: Globe },
-    ],
+    items: [{ href: "/accounts", label: "Email accounts", icon: Users }],
   },
   {
     title: "AI",
@@ -67,7 +64,10 @@ export function AppShell({
     { href: "/settings", label: "Settings", icon: Cog },
     { href: "/billing", label: "Billing", icon: Card },
   ];
-  if (user.is_admin) accountItems.push({ href: "/admin", label: "Admin", icon: Shield });
+  if (user.is_admin) {
+    accountItems.push({ href: "/domains", label: "Domains", icon: Globe });
+    accountItems.push({ href: "/admin", label: "Admin", icon: Shield });
+  }
 
   const isActive = (href: string) =>
     pathname === href || (href !== "/inbox" && pathname.startsWith(href));

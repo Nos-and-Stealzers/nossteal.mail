@@ -1,4 +1,10 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+// Prefer an explicit override; otherwise talk to the API on the same host the
+// app was loaded from (so it works over localhost AND a Tailscale IP alike).
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL ||
+  (typeof window !== "undefined"
+    ? `${window.location.protocol}//${window.location.hostname}:4000`
+    : "http://localhost:4000");
 
 function getToken(): string | null {
   if (typeof window === "undefined") return null;
@@ -228,6 +234,8 @@ export const api = {
     }),
 
   listDomains: () => request<{ domains: Domain[] }>("/api/domains"),
+  listUsableDomains: () =>
+    request<{ domains: { id: string; domain_name: string; is_system: boolean }[] }>("/api/domains/usable"),
   createDomain: (domainName: string) =>
     request<{ domain: Domain }>("/api/domains", { method: "POST", body: JSON.stringify({ domainName }) }),
   deleteDomain: (id: string) => request<void>(`/api/domains/${id}`, { method: "DELETE" }),

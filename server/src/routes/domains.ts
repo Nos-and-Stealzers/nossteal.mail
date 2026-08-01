@@ -24,6 +24,28 @@ domainsRouter.get("/", async (req: AuthedRequest, res) => {
   res.json({ domains });
 });
 
+// Domains a user can create mailboxes on: their own, plus the shared signup
+// domain (MAIL_DOMAIN) so regular users can make AI sub-mailboxes without
+// having to own/configure a domain themselves.
+domainsRouter.get("/usable", async (req: AuthedRequest, res) => {
+  const mailDomain = process.env.MAIL_DOMAIN?.trim();
+  const owned = await pool.query(
+    "SELECT id, domain_name FROM domains WHERE user_id = $1 ORDER BY created_at ASC",
+    [req.userId]
+  );
+  const rows = owned.rows.map((d) => ({ ...d, is_system: false }));
+  if (mailDomain) {
+    const sys = await pool.query(
+      "SELECT id, domain_name FROM domains WHERE LOWER(domain_name) = LOWER($1) LIMIT 1",
+      [mailDomain]
+    );
+    if (sys.rowCount && !rows.some((r) => r.id === sys.rows[0].id)) {
+      rows.unshift({ id: sys.rows[0].id, domain_name: sys.rows[0].domain_name, is_system: true });
+    }
+  }
+  res.json({ domains: rows });
+});
+
 const createDomainSchema = z.object({
   domainName: z
     .string()

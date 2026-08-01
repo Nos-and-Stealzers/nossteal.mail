@@ -80,10 +80,11 @@ emailAccountsRouter.post("/", async (req: AuthedRequest, res) => {
     if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
     const n = parsed.data;
 
-    const domainResult = await pool.query("SELECT domain_name FROM domains WHERE id = $1 AND user_id = $2", [
-      n.domainId,
-      req.userId,
-    ]);
+    // Allow the user's own domains, or the shared signup domain (MAIL_DOMAIN).
+    const domainResult = await pool.query(
+      "SELECT domain_name FROM domains WHERE id = $1 AND (user_id = $2 OR LOWER(domain_name) = LOWER($3))",
+      [n.domainId, req.userId, process.env.MAIL_DOMAIN?.trim() ?? ""]
+    );
     const domain = domainResult.rows[0];
     if (!domain) return res.status(404).json({ error: "Domain not found" });
 
