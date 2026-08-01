@@ -7,7 +7,7 @@ import { useAuth } from "@/lib/useAuth";
 import { ThemeToggle } from "./ThemeToggle";
 import {
   Inbox, Pen, Users, Globe, Sparkles, Server, Plug, Note, Check, Flow,
-  Card, Shield, Logout, Menu, Close, Mail,
+  Card, Shield, Logout, Menu, Close, Mail, Cog,
 } from "./icons";
 
 type NavItem = { href: string; label: string; icon: (p: { width?: number; height?: number }) => ReactNode };
@@ -63,7 +63,10 @@ export function AppShell({
 
   if (loading || !user) return null;
 
-  const accountItems: NavItem[] = [{ href: "/billing", label: "Billing", icon: Card }];
+  const accountItems: NavItem[] = [
+    { href: "/settings", label: "Settings", icon: Cog },
+    { href: "/billing", label: "Billing", icon: Card },
+  ];
   if (user.is_admin) accountItems.push({ href: "/admin", label: "Admin", icon: Shield });
 
   const isActive = (href: string) =>

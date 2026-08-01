@@ -5,11 +5,22 @@ import { pool } from "../db/pool.js";
 
 async function findNativeAccount(address: string) {
   const result = await pool.query(
-    `SELECT id, user_id, email_address FROM email_accounts
+    `SELECT id, user_id, email_address, storage_limit_bytes FROM email_accounts
      WHERE account_kind = 'native' AND LOWER(email_address) = LOWER($1)`,
     [address]
   );
   return result.rows[0] ?? null;
+}
+
+// True when the mailbox is at or over its storage quota.
+async function isOverQuota(accountId: string, limitBytes: number): Promise<boolean> {
+  if (!limitBytes || limitBytes <= 0) return false;
+  const { rows } = await pool.query(
+    `SELECT COALESCE(SUM(octet_length(COALESCE(body_html, '')) + octet_length(COALESCE(body_plaintext, ''))), 0) AS used
+     FROM messages WHERE email_account_id = $1`,
+    [accountId]
+  );
+  return Number(rows[0]?.used ?? 0) >= Number(limitBytes);
 }
 
 const server = new SMTPServer({
@@ -33,6 +44,11 @@ const server = new SMTPServer({
       for (const recipient of toAddresses) {
         const account = await findNativeAccount(recipient);
         if (!account) continue;
+
+        if (await isOverQuota(account.id, account.storage_limit_bytes)) {
+          console.warn(`Mailbox ${account.email_address} is over quota — dropping inbound message`);
+          continue;
+        }
 
         await pool.query(
           `INSERT INTO messages (

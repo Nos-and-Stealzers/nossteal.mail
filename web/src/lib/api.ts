@@ -220,7 +220,37 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ kind: "native", ...payload }),
     }),
+
+  createAiMailbox: (payload: { domainId: string; localPart: string; aiProviderId?: string; displayName?: string }) =>
+    request<{ account: EmailAccountSummary }>("/api/email-accounts", {
+      method: "POST",
+      body: JSON.stringify({ kind: "native", isAiManaged: true, ...payload }),
+    }),
+
+  deleteAccount: (id: string) => request<void>(`/api/email-accounts/${id}`, { method: "DELETE" }),
+
+  // Account & settings
+  getMe: () => request<{ user: User & { account_type?: string; settings?: UserSettings } }>("/api/auth/me"),
+  updateProfile: (payload: { fullName?: string | null; username?: string | null }) =>
+    request<{ user: User }>("/api/auth/me", { method: "PATCH", body: JSON.stringify(payload) }),
+  updateSettings: (settings: UserSettings) =>
+    request<{ settings: UserSettings }>("/api/auth/me/settings", { method: "PUT", body: JSON.stringify({ settings }) }),
+  changePassword: (currentPassword: string, newPassword: string) =>
+    request<{ ok: boolean }>("/api/auth/change-password", {
+      method: "POST",
+      body: JSON.stringify({ currentPassword, newPassword }),
+    }),
 };
+
+export interface UserSettings {
+  defaultSystemPrompt?: string;
+  defaultAutomationMode?: "manual" | "assisted" | "full";
+  defaultTemperature?: number;
+  defaultMaxTokens?: number;
+  aiSignature?: string;
+  compactInbox?: boolean;
+  accentColor?: string;
+}
 
 export interface AiProvider {
   id: string;
@@ -423,6 +453,11 @@ export interface EmailAccountSummary {
   is_default: boolean;
   last_sync: string | null;
   created_at: string;
+  storage_limit_bytes: string | number;
+  storage_used_bytes: string | number;
+  is_ai_managed: boolean;
+  ai_provider_id: string | null;
+  ai_provider_name: string | null;
 }
 
 export interface CreateAccountPayload {

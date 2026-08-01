@@ -468,3 +468,13 @@ ALTER TABLE email_accounts ADD COLUMN IF NOT EXISTS domain_id UUID REFERENCES do
 
 ALTER TABLE users ADD COLUMN IF NOT EXISTS username VARCHAR(100) UNIQUE;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT FALSE;
+
+-- Free-form per-user settings (AI defaults, appearance, etc.)
+ALTER TABLE users ADD COLUMN IF NOT EXISTS settings JSONB NOT NULL DEFAULT '{}'::jsonb;
+
+-- Per-mailbox storage quotas and AI sub-mailbox support.
+-- AI sub-mailboxes are small scratch inboxes an assistant can own; regular
+-- mailboxes get a larger quota that scales with the account's plan.
+ALTER TABLE email_accounts ADD COLUMN IF NOT EXISTS storage_limit_bytes BIGINT NOT NULL DEFAULT 1073741824; -- 1 GB
+ALTER TABLE email_accounts ADD COLUMN IF NOT EXISTS is_ai_managed BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE email_accounts ADD COLUMN IF NOT EXISTS ai_provider_id UUID REFERENCES ai_providers(id) ON DELETE SET NULL;
