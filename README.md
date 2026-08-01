@@ -78,9 +78,6 @@ cd web    && npm run dev        # web app on :3000
 
 Then open **http://localhost:3000** and log in.
 
-**On Windows** you can skip step 4 and just double-click **`start.bat`** — it
-starts the database, all services, and opens the app. `stop.bat` shuts it down.
-
 Full walkthrough: [docs/getting-started.md](docs/getting-started.md).
 
 ## Project layout
@@ -91,7 +88,6 @@ Full walkthrough: [docs/getting-started.md](docs/getting-started.md).
 ├── web/         Next.js 16 web client
 ├── docs/        Documentation (start at docs/README.md)
 ├── DEPLOY.md    Production / real-mail deployment guide
-├── start.bat    One-click launcher (Windows)
 └── docker-compose.yml   Optional Postgres + Redis for local dev
 ```
 

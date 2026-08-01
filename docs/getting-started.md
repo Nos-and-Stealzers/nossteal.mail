@@ -112,13 +112,6 @@ curl http://localhost:4000/health   # -> {"status":"ok"}
 
 Then open **http://localhost:3000** and log in with your seeded admin.
 
-### Windows one-click
-
-Instead of three terminals, double-click **`start.bat`** in the project root. It
-ensures PostgreSQL is running, installs dependencies on first run, launches all
-three services in their own windows, waits for the API, and opens the app.
-**`stop.bat`** stops them.
-
 ## 8. First things to try
 
 1. **Add an AI provider** (AI Providers page). For local AI, choose

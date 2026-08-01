@@ -23,3 +23,8 @@ npm-debug.log*
 # editors
 .vscode/
 .idea/
+
+# local-only launcher scripts (kept on disk, not published)
+/start.bat
+/start.ps1
+/stop.bat
