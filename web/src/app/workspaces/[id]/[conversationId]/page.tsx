@@ -3,11 +3,11 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { useAuth } from "@/lib/useAuth";
 import { api, type ConversationMessage } from "@/lib/api";
+import { AppShell } from "@/components/AppShell";
+import { Back } from "@/components/icons";
 
 export default function ChatPage() {
-  const { loading } = useAuth();
   const params = useParams<{ id: string; conversationId: string }>();
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [input, setInput] = useState("");
@@ -16,9 +16,9 @@ export default function ChatPage() {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (loading) return;
     refresh();
-  }, [loading, params.conversationId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.conversationId]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -55,50 +55,47 @@ export default function ChatPage() {
     }
   }
 
-  if (loading) return null;
-
   return (
-    <main className="flex min-h-screen flex-col bg-neutral-950 text-neutral-100">
-      <header className="border-b border-neutral-800 px-6 py-4">
-        <Link href={`/workspaces/${params.id}`} className="text-sm text-indigo-400 hover:underline">
-          ← Back to conversations
-        </Link>
-      </header>
-
-      <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col px-6 py-6">
-        <div className="flex-1 space-y-4 overflow-y-auto">
+    <AppShell
+      title="Chat"
+      maxWidth="46rem"
+      actions={<Link href={`/workspaces/${params.id}`} className="btn btn-ghost btn-sm"><Back width={15} height={15} /> Conversations</Link>}
+    >
+      <div className="flex flex-col" style={{ height: "calc(100vh - 9rem)" }}>
+        <div className="flex-1 space-y-3 overflow-y-auto pr-1">
+          {!messages.length && (
+            <div className="empty">Say hello to start the conversation.</div>
+          )}
           {messages.map((m) => (
-            <div key={m.id} className={m.role === "user" ? "text-right" : "text-left"}>
+            <div key={m.id} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
               <div
-                className={`inline-block max-w-[80%] rounded-lg px-4 py-2 text-sm ${
-                  m.role === "user" ? "bg-indigo-600 text-white" : "bg-neutral-900 text-neutral-100"
-                }`}
+                className="max-w-[80%] whitespace-pre-wrap rounded-2xl px-4 py-2.5 text-sm leading-relaxed"
+                style={
+                  m.role === "user"
+                    ? { background: "var(--accent)", color: "var(--accent-fg)", borderBottomRightRadius: 6 }
+                    : { background: "var(--surface-2)", color: "var(--text)", border: "1px solid var(--border)", borderBottomLeftRadius: 6 }
+                }
               >
-                <p className="whitespace-pre-wrap">{m.content}</p>
+                {m.content}
               </div>
             </div>
           ))}
           <div ref={bottomRef} />
         </div>
 
-        {error && <p className="mt-4 rounded bg-red-950 p-2 text-sm text-red-300">{error}</p>}
+        {error && <p className="alert alert-danger mt-3">{error}</p>}
 
-        <form onSubmit={handleSubmit} className="mt-4 flex gap-2">
+        <form onSubmit={handleSubmit} className="mt-3 flex gap-2">
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Message the AI..."
-            className="flex-1 rounded border border-neutral-700 bg-neutral-900 px-3 py-2"
+            placeholder="Message the AI…"
+            className="input"
+            autoFocus
           />
-          <button
-            type="submit"
-            disabled={sending}
-            className="rounded bg-indigo-600 px-4 py-2 font-medium hover:bg-indigo-500 disabled:opacity-50"
-          >
-            {sending ? "Sending..." : "Send"}
-          </button>
+          <button type="submit" disabled={sending} className="btn btn-primary">{sending ? "…" : "Send"}</button>
         </form>
       </div>
-    </main>
+    </AppShell>
   );
 }

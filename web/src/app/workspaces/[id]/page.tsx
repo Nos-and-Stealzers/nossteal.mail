@@ -3,11 +3,11 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { useAuth } from "@/lib/useAuth";
 import { api, type Conversation } from "@/lib/api";
+import { AppShell } from "@/components/AppShell";
+import { Back } from "@/components/icons";
 
 export default function WorkspaceConversationsPage() {
-  const { loading } = useAuth();
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -15,12 +15,11 @@ export default function WorkspaceConversationsPage() {
   const [creating, setCreating] = useState(false);
 
   useEffect(() => {
-    if (loading) return;
     api
       .listConversations(params.id)
       .then((res) => setConversations(res.conversations))
       .catch((err) => setError((err as Error).message));
-  }, [loading, params.id]);
+  }, [params.id]);
 
   async function newConversation() {
     setCreating(true);
@@ -34,42 +33,32 @@ export default function WorkspaceConversationsPage() {
     }
   }
 
-  if (loading) return null;
-
   return (
-    <main className="min-h-screen bg-neutral-950 text-neutral-100">
-      <header className="flex items-center justify-between border-b border-neutral-800 px-6 py-4">
-        <Link href="/workspaces" className="text-sm text-indigo-400 hover:underline">
-          ← Back to workspaces
-        </Link>
-        <button
-          onClick={newConversation}
-          disabled={creating}
-          className="rounded bg-indigo-600 px-3 py-1.5 text-sm font-medium hover:bg-indigo-500 disabled:opacity-50"
-        >
-          {creating ? "Creating..." : "New conversation"}
-        </button>
-      </header>
-      <div className="mx-auto max-w-2xl px-6 py-6">
-        {error && <p className="mb-4 rounded bg-red-950 p-2 text-sm text-red-300">{error}</p>}
-        {!conversations.length ? (
-          <p className="text-neutral-500">No conversations yet. Start one above.</p>
-        ) : (
-          <ul className="divide-y divide-neutral-800 rounded border border-neutral-800">
-            {conversations.map((c) => (
-              <li key={c.id}>
-                <Link
-                  href={`/workspaces/${params.id}/${c.id}`}
-                  className="flex items-center justify-between px-4 py-3 text-sm hover:bg-neutral-900"
-                >
-                  <span>{c.title || "Untitled"}</span>
-                  <span className="text-xs text-neutral-500">{c.message_count} messages</span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-    </main>
+    <AppShell
+      title="Conversations"
+      maxWidth="44rem"
+      actions={
+        <>
+          <Link href="/workspaces" className="btn btn-ghost btn-sm"><Back width={15} height={15} /> Workspaces</Link>
+          <button onClick={newConversation} disabled={creating} className="btn btn-primary btn-sm">
+            {creating ? "Creating…" : "New chat"}
+          </button>
+        </>
+      }
+    >
+      {error && <p className="alert alert-danger mb-4">{error}</p>}
+      {!conversations.length ? (
+        <div className="empty">No conversations yet. Start one with “New chat”.</div>
+      ) : (
+        <div className="list">
+          {conversations.map((c) => (
+            <Link key={c.id} href={`/workspaces/${params.id}/${c.id}`} className="list-row">
+              <span className="flex-1 truncate text-sm font-medium">{c.title || "Untitled"}</span>
+              <span className="badge">{c.message_count} msgs</span>
+            </Link>
+          ))}
+        </div>
+      )}
+    </AppShell>
   );
 }

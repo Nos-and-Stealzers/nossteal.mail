@@ -2,21 +2,20 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useAuth } from "@/lib/useAuth";
 import { api, type MessageSummary, type EmailAccountSummary } from "@/lib/api";
+import { AppShell } from "@/components/AppShell";
+import { Pen } from "@/components/icons";
 
 export default function InboxPage() {
-  const { user, loading, logout } = useAuth();
   const [messages, setMessages] = useState<MessageSummary[]>([]);
   const [accounts, setAccounts] = useState<EmailAccountSummary[]>([]);
   const [busy, setBusy] = useState(false);
+  const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!user) return;
     refresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  }, []);
 
   async function refresh() {
     setError(null);
@@ -29,6 +28,8 @@ export default function InboxPage() {
       setAccounts(accounts);
     } catch (err) {
       setError((err as Error).message);
+    } finally {
+      setReady(true);
     }
   }
 
@@ -36,9 +37,7 @@ export default function InboxPage() {
     setBusy(true);
     setError(null);
     try {
-      for (const account of accounts) {
-        await api.syncAccount(account.id);
-      }
+      for (const account of accounts) await api.syncAccount(account.id);
       await refresh();
     } catch (err) {
       setError((err as Error).message);
@@ -47,94 +46,67 @@ export default function InboxPage() {
     }
   }
 
-  if (loading) return null;
+  const initials = (addr: string | null) => (addr ?? "?").replace(/[^a-zA-Z0-9]/g, "").slice(0, 2).toUpperCase() || "?";
 
   return (
-    <main className="min-h-screen bg-neutral-950 text-neutral-100">
-      <header className="flex items-center justify-between border-b border-neutral-800 px-6 py-4">
-        <h1 className="text-lg font-semibold">nossteal.mail</h1>
-        <nav className="flex items-center gap-4 text-sm">
-          <span className="text-neutral-400">{user?.email}</span>
-          {user?.is_admin && (
-            <Link href="/admin" className="text-emerald-400 hover:underline">
-              Admin
-            </Link>
-          )}
-          <Link href="/accounts" className="text-indigo-400 hover:underline">
-            Accounts
-          </Link>
-          <Link href="/domains" className="text-indigo-400 hover:underline">
-            Domains
-          </Link>
-          <Link href="/workspaces" className="text-indigo-400 hover:underline">
-            AI Workspaces
-          </Link>
-          <Link href="/ai-providers" className="text-indigo-400 hover:underline">
-            AI Providers
-          </Link>
-          <Link href="/mcp-servers" className="text-indigo-400 hover:underline">
-            MCP Servers
-          </Link>
-          <Link href="/plugins" className="text-indigo-400 hover:underline">
-            Plugins
-          </Link>
-          <Link href="/workflows" className="text-indigo-400 hover:underline">
-            Workflows
-          </Link>
-          <Link href="/tasks" className="text-indigo-400 hover:underline">
-            Tasks
-          </Link>
-          <Link href="/notes" className="text-indigo-400 hover:underline">
-            Notes
-          </Link>
-          <Link href="/billing" className="text-indigo-400 hover:underline">
-            Billing
-          </Link>
-          <Link href="/compose" className="text-indigo-400 hover:underline">
-            Compose
-          </Link>
-          <button onClick={syncAll} disabled={busy || !accounts.length} className="text-indigo-400 hover:underline disabled:opacity-50">
-            {busy ? "Syncing..." : "Sync"}
+    <AppShell
+      title="Inbox"
+      maxWidth="56rem"
+      actions={
+        <>
+          <button onClick={syncAll} disabled={busy || !accounts.length} className="btn btn-secondary btn-sm">
+            {busy ? "Syncing…" : "Sync"}
           </button>
-          <button onClick={logout} className="text-neutral-400 hover:underline">
-            Log out
-          </button>
-        </nav>
-      </header>
+          <Link href="/compose" className="btn btn-primary btn-sm">
+            <Pen width={15} height={15} /> <span className="hidden sm:inline">Compose</span>
+          </Link>
+        </>
+      }
+    >
+      {error && <p className="alert alert-danger mb-4">{error}</p>}
 
-      <div className="mx-auto max-w-3xl px-6 py-6">
-        {error && <p className="mb-4 rounded bg-red-950 p-2 text-sm text-red-300">{error}</p>}
-        {!accounts.length && (
-          <p className="mb-4 rounded border border-neutral-800 p-4 text-sm text-neutral-400">
-            Connect an email account to start syncing your inbox.{" "}
-            <Link href="/accounts" className="text-indigo-400 hover:underline">
-              Add account
-            </Link>
-          </p>
-        )}
-        {!messages.length ? (
-          <p className="text-neutral-500">No messages yet.</p>
-        ) : (
-          <ul className="divide-y divide-neutral-800 rounded border border-neutral-800">
-            {messages.map((m) => (
-              <li key={m.id}>
-                <Link
-                  href={`/messages/${m.id}`}
-                  className={`flex items-center justify-between px-4 py-3 hover:bg-neutral-900 ${
-                    m.is_read ? "text-neutral-400" : "font-semibold text-neutral-100"
-                  }`}
-                >
-                  <span className="w-1/3 truncate">{m.from_address ?? "(unknown sender)"}</span>
-                  <span className="flex-1 truncate px-4">{m.subject ?? "(no subject)"}</span>
-                  <span className="text-xs text-neutral-500">
-                    {m.date_received ? new Date(m.date_received).toLocaleString() : ""}
+      {ready && !accounts.length && (
+        <div className="alert alert-info mb-4">
+          Connect an email account or add a domain to start receiving mail.{" "}
+          <Link href="/accounts" className="link">Add account →</Link>
+        </div>
+      )}
+
+      {!ready ? (
+        <p className="muted">Loading…</p>
+      ) : !messages.length ? (
+        <div className="empty">
+          <p className="mb-1 font-medium" style={{ color: "var(--text)" }}>No messages yet</p>
+          <p className="text-sm">Once mail arrives or you sync an account, it shows up here.</p>
+        </div>
+      ) : (
+        <div className="list">
+          {messages.map((m) => (
+            <Link key={m.id} href={`/messages/${m.id}`} className="list-row">
+              <span
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-semibold"
+                style={{ background: "var(--accent-soft)", color: "var(--accent)" }}
+              >
+                {initials(m.from_address)}
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className={`truncate text-sm ${m.is_read ? "muted" : "font-semibold"}`}>
+                    {m.from_address ?? "(unknown sender)"}
                   </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-    </main>
+                  {!m.is_read && <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: "var(--accent)" }} />}
+                </div>
+                <div className={`truncate text-sm ${m.is_read ? "subtle" : ""}`}>
+                  {m.subject ?? "(no subject)"}
+                </div>
+              </div>
+              <span className="shrink-0 text-xs subtle">
+                {m.date_received ? new Date(m.date_received).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : ""}
+              </span>
+            </Link>
+          ))}
+        </div>
+      )}
+    </AppShell>
   );
 }

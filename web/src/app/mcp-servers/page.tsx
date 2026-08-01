@@ -1,12 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
-import { useAuth } from "@/lib/useAuth";
 import { api, type McpServer } from "@/lib/api";
+import { AppShell } from "@/components/AppShell";
 
 export default function McpServersPage() {
-  const { loading } = useAuth();
   const [servers, setServers] = useState<McpServer[]>([]);
   const [name, setName] = useState("");
   const [connectionUrl, setConnectionUrl] = useState("");
@@ -16,9 +14,8 @@ export default function McpServersPage() {
   const [connectError, setConnectError] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    if (loading) return;
     refresh();
-  }, [loading]);
+  }, []);
 
   async function refresh() {
     const { servers } = await api.listMcpServers();
@@ -59,96 +56,57 @@ export default function McpServersPage() {
     await refresh();
   }
 
-  if (loading) return null;
-
   return (
-    <main className="min-h-screen bg-neutral-950 text-neutral-100">
-      <header className="border-b border-neutral-800 px-6 py-4">
-        <Link href="/inbox" className="text-sm text-indigo-400 hover:underline">
-          ← Back to inbox
-        </Link>
-      </header>
-      <div className="mx-auto max-w-2xl space-y-8 px-6 py-6">
-        <section>
-          <h1 className="mb-3 text-xl font-semibold">MCP servers</h1>
-          <p className="mb-4 text-sm text-neutral-500">
-            Connect remote MCP servers (Streamable HTTP) to give AI providers access to external tools. Nothing
-            connects automatically — you trigger discovery and tool use explicitly.
-          </p>
-          {!servers.length ? (
-            <p className="text-neutral-500">No MCP servers connected yet.</p>
-          ) : (
-            <ul className="divide-y divide-neutral-800 rounded border border-neutral-800">
-              {servers.map((s) => (
-                <li key={s.id} className="px-4 py-3 text-sm">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium">{s.name}</p>
-                      <p className="text-neutral-500">{s.connection_url}</p>
-                      <p className="text-xs text-neutral-600">
-                        {s.is_connected ? `Connected · ${s.tools_count} tools` : "Not connected"}
-                        {s.server_version ? ` · ${s.server_version}` : ""}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <button
-                        onClick={() => handleConnect(s.id)}
-                        disabled={connectingId === s.id}
-                        className="text-indigo-400 hover:underline disabled:opacity-50"
-                      >
-                        {connectingId === s.id ? "Connecting..." : "Connect / refresh"}
-                      </button>
-                      <button onClick={() => handleDelete(s.id)} className="text-red-400 hover:underline">
-                        Remove
-                      </button>
-                    </div>
-                  </div>
-                  {connectError[s.id] && (
-                    <p className="mt-2 rounded bg-red-950 p-2 text-xs text-red-300">{connectError[s.id]}</p>
-                  )}
-                  {!connectError[s.id] && s.connection_error && (
-                    <p className="mt-2 rounded bg-red-950 p-2 text-xs text-red-300">{s.connection_error}</p>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
+    <AppShell title="MCP servers" maxWidth="44rem">
+      <p className="mb-5 text-sm muted">
+        Connect remote MCP servers (Streamable HTTP) to give AI providers access to external tools.
+        Nothing connects automatically — you trigger discovery and tool use explicitly.
+      </p>
 
-        <section>
-          <h2 className="mb-3 text-lg font-semibold">Add MCP server</h2>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {error && <p className="rounded bg-red-950 p-2 text-sm text-red-300">{error}</p>}
-            <div className="space-y-1">
-              <label className="text-sm text-neutral-400">Name</label>
-              <input
-                required
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="w-full rounded border border-neutral-700 bg-neutral-900 px-3 py-2"
-              />
+      {!servers.length ? (
+        <div className="empty mb-8">No MCP servers connected yet.</div>
+      ) : (
+        <div className="mb-8 space-y-3">
+          {servers.map((s) => (
+            <div key={s.id} className="card card-pad">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p className="font-medium">{s.name}</p>
+                    <span className={`badge ${s.is_connected ? "badge-success" : ""}`}>
+                      {s.is_connected ? `Connected · ${s.tools_count} tools` : "Not connected"}
+                    </span>
+                  </div>
+                  <p className="mono mt-0.5 truncate text-xs subtle">{s.connection_url}{s.server_version ? ` · ${s.server_version}` : ""}</p>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <button onClick={() => handleConnect(s.id)} disabled={connectingId === s.id} className="btn btn-secondary btn-sm">
+                    {connectingId === s.id ? "Connecting…" : "Connect"}
+                  </button>
+                  <button onClick={() => handleDelete(s.id)} className="btn btn-danger btn-sm">Remove</button>
+                </div>
+              </div>
+              {(connectError[s.id] || (!connectError[s.id] && s.connection_error)) && (
+                <p className="alert alert-danger mt-3">{connectError[s.id] || s.connection_error}</p>
+              )}
             </div>
-            <div className="space-y-1">
-              <label className="text-sm text-neutral-400">Connection URL (Streamable HTTP endpoint)</label>
-              <input
-                required
-                type="url"
-                placeholder="https://example.com/mcp"
-                value={connectionUrl}
-                onChange={(e) => setConnectionUrl(e.target.value)}
-                className="w-full rounded border border-neutral-700 bg-neutral-900 px-3 py-2"
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={saving}
-              className="rounded bg-indigo-600 px-4 py-2 font-medium hover:bg-indigo-500 disabled:opacity-50"
-            >
-              {saving ? "Saving..." : "Add server"}
-            </button>
-          </form>
-        </section>
-      </div>
-    </main>
+          ))}
+        </div>
+      )}
+
+      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide subtle">Add MCP server</h2>
+      <form onSubmit={handleSubmit} className="card card-pad">
+        {error && <p className="alert alert-danger mb-4">{error}</p>}
+        <div className="field">
+          <label className="label">Name</label>
+          <input required value={name} onChange={(e) => setName(e.target.value)} className="input" />
+        </div>
+        <div className="field">
+          <label className="label">Connection URL <span className="subtle">(Streamable HTTP endpoint)</span></label>
+          <input required type="url" placeholder="https://example.com/mcp" value={connectionUrl} onChange={(e) => setConnectionUrl(e.target.value)} className="input" />
+        </div>
+        <button type="submit" disabled={saving} className="btn btn-primary">{saving ? "Saving…" : "Add server"}</button>
+      </form>
+    </AppShell>
   );
 }

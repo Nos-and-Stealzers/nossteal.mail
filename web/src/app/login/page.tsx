@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { persistSession } from "@/lib/useAuth";
+import { AuthShell } from "@/components/AuthShell";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -29,43 +30,44 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-neutral-950 text-neutral-100">
-      <form onSubmit={handleSubmit} className="w-full max-w-sm space-y-4 rounded-lg border border-neutral-800 p-8">
-        <h1 className="text-xl font-semibold">Sign in to nossteal.mail</h1>
-        {error && <p className="rounded bg-red-950 p-2 text-sm text-red-300">{error}</p>}
-        <div className="space-y-1">
-          <label className="text-sm text-neutral-400">Email or username</label>
+    <AuthShell
+      title="Welcome back"
+      subtitle="Sign in to your nossteal.mail account."
+      footer={
+        <>
+          No account?{" "}
+          <Link href="/register" className="link">Create one</Link>
+        </>
+      }
+    >
+      <form onSubmit={handleSubmit}>
+        {error && <p className="alert alert-danger mb-4">{error}</p>}
+        <div className="field">
+          <label className="label">Email or username</label>
           <input
             required
+            autoFocus
             value={identifier}
             onChange={(e) => setIdentifier(e.target.value)}
-            className="w-full rounded border border-neutral-700 bg-neutral-900 px-3 py-2"
+            className="input"
+            placeholder="you@example.com"
           />
         </div>
-        <div className="space-y-1">
-          <label className="text-sm text-neutral-400">Password</label>
+        <div className="field">
+          <label className="label">Password</label>
           <input
             type="password"
             required
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full rounded border border-neutral-700 bg-neutral-900 px-3 py-2"
+            className="input"
+            placeholder="••••••••"
           />
         </div>
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full rounded bg-indigo-600 py-2 font-medium hover:bg-indigo-500 disabled:opacity-50"
-        >
-          {loading ? "Signing in..." : "Sign in"}
+        <button type="submit" disabled={loading} className="btn btn-primary btn-lg mt-1 w-full">
+          {loading ? "Signing in…" : "Sign in"}
         </button>
-        <p className="text-sm text-neutral-400">
-          No account?{" "}
-          <Link href="/register" className="text-indigo-400 hover:underline">
-            Register
-          </Link>
-        </p>
       </form>
-    </main>
+    </AuthShell>
   );
 }

@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
-import { useAuth } from "@/lib/useAuth";
 import { api, type AiProvider } from "@/lib/api";
+import { AppShell } from "@/components/AppShell";
 
 const emptyForm = {
   name: "",
@@ -17,16 +16,14 @@ const emptyForm = {
 };
 
 export default function AiProvidersPage() {
-  const { loading } = useAuth();
   const [providers, setProviders] = useState<AiProvider[]>([]);
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (loading) return;
     refresh();
-  }, [loading]);
+  }, []);
 
   async function refresh() {
     const { providers } = await api.listAiProviders();
@@ -62,117 +59,63 @@ export default function AiProvidersPage() {
     await refresh();
   }
 
-  if (loading) return null;
-
   return (
-    <main className="min-h-screen bg-neutral-950 text-neutral-100">
-      <header className="border-b border-neutral-800 px-6 py-4">
-        <Link href="/inbox" className="text-sm text-indigo-400 hover:underline">
-          ← Back to inbox
-        </Link>
-      </header>
-      <div className="mx-auto max-w-2xl space-y-8 px-6 py-6">
-        <section>
-          <h1 className="mb-3 text-xl font-semibold">AI providers</h1>
-          <p className="mb-4 text-sm text-neutral-500">
-            No AI is connected by default. Add a provider to enable AI workspaces — everything stays in manual
-            mode until you explicitly enable automation.
-          </p>
-          {!providers.length ? (
-            <p className="text-neutral-500">No providers connected yet.</p>
-          ) : (
-            <ul className="divide-y divide-neutral-800 rounded border border-neutral-800">
-              {providers.map((p) => (
-                <ProviderRow key={p.id} provider={p} onChange={refresh} onDelete={handleDelete} />
-              ))}
-            </ul>
-          )}
-        </section>
+    <AppShell title="AI providers" maxWidth="44rem">
+      <p className="mb-5 text-sm muted">
+        No AI is connected by default. Add a provider to enable workspaces — everything stays in manual
+        mode until you explicitly enable automation.
+      </p>
 
-        <section>
-          <h2 className="mb-3 text-lg font-semibold">Add provider</h2>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {error && <p className="rounded bg-red-950 p-2 text-sm text-red-300">{error}</p>}
-            <div className="space-y-1">
-              <label className="text-sm text-neutral-400">Name</label>
-              <input
-                required
-                value={form.name}
-                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                className="w-full rounded border border-neutral-700 bg-neutral-900 px-3 py-2"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-sm text-neutral-400">Provider type</label>
-              <select
-                value={form.providerType}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, providerType: e.target.value as typeof f.providerType }))
-                }
-                className="w-full rounded border border-neutral-700 bg-neutral-900 px-3 py-2"
-              >
-                <option value="anthropic">Anthropic (Claude)</option>
-                <option value="openai_compatible">OpenAI-compatible (OpenAI, Ollama, LM Studio, etc.)</option>
-              </select>
-            </div>
-            <div className="space-y-1">
-              <label className="text-sm text-neutral-400">Model name</label>
-              <input
-                required
-                value={form.modelName}
-                onChange={(e) => setForm((f) => ({ ...f, modelName: e.target.value }))}
-                className="w-full rounded border border-neutral-700 bg-neutral-900 px-3 py-2"
-                placeholder={form.providerType === "anthropic" ? "claude-sonnet-5" : "gpt-4o / llama3 / ..."}
-              />
-            </div>
-            {form.providerType === "openai_compatible" && (
-              <div className="space-y-1">
-                <label className="text-sm text-neutral-400">API endpoint</label>
-                <input
-                  required
-                  value={form.apiEndpoint}
-                  onChange={(e) => setForm((f) => ({ ...f, apiEndpoint: e.target.value }))}
-                  placeholder="https://api.openai.com/v1 or http://localhost:11434/v1"
-                  className="w-full rounded border border-neutral-700 bg-neutral-900 px-3 py-2"
-                />
-              </div>
-            )}
-            <div className="space-y-1">
-              <label className="text-sm text-neutral-400">API key (leave blank for keyless local models)</label>
-              <input
-                type="password"
-                value={form.apiKey}
-                onChange={(e) => setForm((f) => ({ ...f, apiKey: e.target.value }))}
-                className="w-full rounded border border-neutral-700 bg-neutral-900 px-3 py-2"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-sm text-neutral-400">System prompt (optional)</label>
-              <textarea
-                rows={3}
-                value={form.systemPrompt}
-                onChange={(e) => setForm((f) => ({ ...f, systemPrompt: e.target.value }))}
-                className="w-full rounded border border-neutral-700 bg-neutral-900 px-3 py-2"
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={saving}
-              className="rounded bg-indigo-600 px-4 py-2 font-medium hover:bg-indigo-500 disabled:opacity-50"
-            >
-              {saving ? "Saving..." : "Add provider"}
-            </button>
-          </form>
-        </section>
-      </div>
-    </main>
+      {!providers.length ? (
+        <div className="empty mb-8">No providers yet. Add one below — a local Ollama model works with no API key.</div>
+      ) : (
+        <div className="mb-8 space-y-3">
+          {providers.map((p) => (
+            <ProviderRow key={p.id} provider={p} onChange={refresh} onDelete={handleDelete} />
+          ))}
+        </div>
+      )}
+
+      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide subtle">Add provider</h2>
+      <form onSubmit={handleSubmit} className="card card-pad">
+        {error && <p className="alert alert-danger mb-4">{error}</p>}
+        <div className="field">
+          <label className="label">Name</label>
+          <input required value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} className="input" placeholder="e.g. Local (Ollama)" />
+        </div>
+        <div className="field">
+          <label className="label">Provider type</label>
+          <select value={form.providerType} onChange={(e) => setForm((f) => ({ ...f, providerType: e.target.value as typeof f.providerType }))} className="select">
+            <option value="anthropic">Anthropic (Claude)</option>
+            <option value="openai_compatible">OpenAI-compatible (OpenAI, Ollama, LM Studio…)</option>
+          </select>
+        </div>
+        <div className="field">
+          <label className="label">Model name</label>
+          <input required value={form.modelName} onChange={(e) => setForm((f) => ({ ...f, modelName: e.target.value }))} className="input" placeholder={form.providerType === "anthropic" ? "claude-sonnet-5" : "gpt-4o / llama3:latest / …"} />
+        </div>
+        {form.providerType === "openai_compatible" && (
+          <div className="field">
+            <label className="label">API endpoint</label>
+            <input required value={form.apiEndpoint} onChange={(e) => setForm((f) => ({ ...f, apiEndpoint: e.target.value }))} className="input" placeholder="https://api.openai.com/v1 or http://localhost:11434/v1" />
+          </div>
+        )}
+        <div className="field">
+          <label className="label">API key <span className="subtle">(blank for keyless local models)</span></label>
+          <input type="password" value={form.apiKey} onChange={(e) => setForm((f) => ({ ...f, apiKey: e.target.value }))} className="input" />
+        </div>
+        <div className="field">
+          <label className="label">System prompt <span className="subtle">(optional)</span></label>
+          <textarea rows={3} value={form.systemPrompt} onChange={(e) => setForm((f) => ({ ...f, systemPrompt: e.target.value }))} className="textarea" />
+        </div>
+        <button type="submit" disabled={saving} className="btn btn-primary">{saving ? "Saving…" : "Add provider"}</button>
+      </form>
+    </AppShell>
   );
 }
 
 function ProviderRow({
-  provider,
-  onChange,
-  onDelete,
+  provider, onChange, onDelete,
 }: {
   provider: AiProvider;
   onChange: () => void;
@@ -216,43 +159,34 @@ function ProviderRow({
   }
 
   return (
-    <li className="px-4 py-3 text-sm">
-      <div className="flex items-center justify-between">
+    <div className="card card-pad">
+      <div className="flex items-start justify-between gap-3">
         <div>
           <p className="font-medium">{provider.name}</p>
-          <p className="text-neutral-500">
-            {provider.provider_type} · {provider.model_name}
-          </p>
+          <p className="text-xs subtle">{provider.provider_type} · {provider.model_name}</p>
         </div>
-        <button onClick={() => onDelete(provider.id)} className="text-red-400 hover:underline">
-          Remove
-        </button>
+        <button onClick={() => onDelete(provider.id)} className="btn btn-danger btn-sm">Remove</button>
       </div>
-      {error && <p className="mt-2 rounded bg-red-950 p-2 text-xs text-red-300">{error}</p>}
-      <div className="mt-2 flex items-center gap-3">
+      {error && <p className="alert alert-danger mt-3">{error}</p>}
+      <div className="mt-3 flex flex-wrap items-center gap-2">
         <select
           value={provider.automation_mode}
           disabled={busy}
           onChange={(e) => handleModeChange(e.target.value as "manual" | "assisted" | "full")}
-          className="rounded border border-neutral-700 bg-neutral-900 px-2 py-1 text-xs"
+          className="select"
+          style={{ maxWidth: "22rem" }}
         >
-          <option value="manual">Manual — nothing happens without your approval</option>
-          <option value="assisted">Assisted — approved categories run automatically</option>
-          <option value="full">Full Automation — acts unattended within granted permissions</option>
+          <option value="manual">Manual — nothing without approval</option>
+          <option value="assisted">Assisted — approved categories run</option>
+          <option value="full">Full — acts unattended within permissions</option>
         </select>
         {provider.automation_mode !== "manual" && (
-          <button
-            onClick={togglePause}
-            disabled={busy}
-            className={`rounded px-2 py-1 text-xs font-medium ${
-              provider.is_paused ? "bg-emerald-700 hover:bg-emerald-600" : "bg-amber-700 hover:bg-amber-600"
-            }`}
-          >
+          <button onClick={togglePause} disabled={busy} className={`btn btn-sm ${provider.is_paused ? "btn-secondary" : "btn-danger"}`}>
             {provider.is_paused ? "Resume" : "Emergency stop"}
           </button>
         )}
-        {provider.is_paused && <span className="text-xs text-amber-400">Paused</span>}
+        {provider.is_paused && <span className="badge badge-danger">Paused</span>}
       </div>
-    </li>
+    </div>
   );
 }

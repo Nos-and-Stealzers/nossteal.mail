@@ -1,21 +1,19 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
-import { useAuth } from "@/lib/useAuth";
 import { api, type Domain } from "@/lib/api";
+import { AppShell } from "@/components/AppShell";
 
 export default function DomainsPage() {
-  const { loading } = useAuth();
   const [domains, setDomains] = useState<Domain[]>([]);
   const [domainName, setDomainName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [copied, setCopied] = useState<string | null>(null);
 
   useEffect(() => {
-    if (loading) return;
     refresh();
-  }, [loading]);
+  }, []);
 
   async function refresh() {
     const { domains } = await api.listDomains();
@@ -42,78 +40,65 @@ export default function DomainsPage() {
     await refresh();
   }
 
-  if (loading) return null;
+  async function copy(value: string, key: string) {
+    await navigator.clipboard.writeText(value);
+    setCopied(key);
+    setTimeout(() => setCopied((c) => (c === key ? null : c)), 1500);
+  }
 
   return (
-    <main className="min-h-screen bg-neutral-950 text-neutral-100">
-      <header className="border-b border-neutral-800 px-6 py-4">
-        <Link href="/inbox" className="text-sm text-indigo-400 hover:underline">
-          ← Back to inbox
-        </Link>
-      </header>
-      <div className="mx-auto max-w-3xl space-y-8 px-6 py-6">
-        <section>
-          <h1 className="mb-3 text-xl font-semibold">Domains</h1>
-          <p className="mb-4 text-sm text-neutral-500">
-            Adding a domain generates a DKIM keypair and gives you the DNS records to publish yourself
-            (wherever your domain&apos;s DNS is hosted). Mail sent from addresses on a domain here goes direct
-            to the recipient&apos;s mail server — no relay, no third party. Inbound delivery only works once
-            the SMTP receiver is deployed on a host with a public IP, matching reverse DNS, and port 25 open.
-          </p>
-          {!domains.length ? (
-            <p className="text-neutral-500">No domains added yet.</p>
-          ) : (
-            <ul className="space-y-4">
-              {domains.map((d) => (
-                <li key={d.id} className="rounded border border-neutral-800 p-4 text-sm">
-                  <div className="flex items-center justify-between">
-                    <p className="font-medium">{d.domain_name}</p>
-                    <button onClick={() => handleDelete(d.id)} className="text-red-400 hover:underline">
-                      Remove
-                    </button>
-                  </div>
-                  <p className="mt-1 text-xs text-neutral-500">
-                    Added {new Date(d.created_at).toLocaleDateString()}
-                  </p>
-                  <div className="mt-3 space-y-2">
-                    <p className="text-xs font-medium text-neutral-400">DNS records to publish:</p>
-                    {d.dns_records.map((r, i) => (
-                      <div key={i} className="rounded border border-neutral-800 bg-neutral-900 p-2 text-xs">
-                        <p className="text-neutral-400">
-                          <span className="font-mono text-indigo-400">{r.type}</span> · {r.host}
-                        </p>
-                        <p className="mt-1 break-all font-mono text-neutral-300">{r.value}</p>
-                        <p className="mt-1 text-neutral-500">{r.note}</p>
-                      </div>
-                    ))}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
+    <AppShell title="Domains" maxWidth="48rem">
+      <form onSubmit={handleSubmit} className="card card-pad mb-6">
+        <label className="label">Add a domain you own</label>
+        <div className="flex gap-2">
+          <input required placeholder="yourdomain.com" value={domainName} onChange={(e) => setDomainName(e.target.value)} className="input" />
+          <button type="submit" disabled={saving} className="btn btn-primary">{saving ? "Adding…" : "Add"}</button>
+        </div>
+        {error && <p className="alert alert-danger mt-3">{error}</p>}
+        <p className="mt-3 text-xs subtle">
+          Adding a domain generates a DKIM keypair and the DNS records to publish. Outbound mail goes
+          direct to the recipient — no relay. Inbound needs the SMTP receiver deployed on a public host
+          (port 25 + reverse DNS).
+        </p>
+      </form>
 
-        <section>
-          <h2 className="mb-3 text-lg font-semibold">Add domain</h2>
-          {error && <p className="mb-3 rounded bg-red-950 p-2 text-sm text-red-300">{error}</p>}
-          <form onSubmit={handleSubmit} className="flex gap-2">
-            <input
-              required
-              placeholder="yourdomain.com"
-              value={domainName}
-              onChange={(e) => setDomainName(e.target.value)}
-              className="flex-1 rounded border border-neutral-700 bg-neutral-900 px-3 py-2"
-            />
-            <button
-              type="submit"
-              disabled={saving}
-              className="rounded bg-indigo-600 px-4 py-2 font-medium hover:bg-indigo-500 disabled:opacity-50"
-            >
-              {saving ? "Adding..." : "Add domain"}
-            </button>
-          </form>
-        </section>
-      </div>
-    </main>
+      {!domains.length ? (
+        <div className="empty">No domains yet. Add one above to get your DNS records.</div>
+      ) : (
+        <div className="space-y-4">
+          {domains.map((d) => (
+            <div key={d.id} className="card card-pad">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-semibold">{d.domain_name}</p>
+                  <p className="text-xs subtle">Added {new Date(d.created_at).toLocaleDateString()}</p>
+                </div>
+                <button onClick={() => handleDelete(d.id)} className="btn btn-danger btn-sm">Remove</button>
+              </div>
+
+              <p className="eyebrow mt-4 mb-2">DNS records to publish</p>
+              <div className="space-y-2">
+                {d.dns_records.map((r, i) => {
+                  const key = `${d.id}-${i}`;
+                  return (
+                    <div key={i} className="rounded-lg border p-3" style={{ background: "var(--surface-2)" }}>
+                      <div className="mb-1 flex items-center gap-2">
+                        <span className="badge badge-accent">{r.type}</span>
+                        <span className="mono text-xs muted">{r.host}</span>
+                        <button onClick={() => copy(r.value, key)} className="btn btn-ghost btn-sm ml-auto">
+                          {copied === key ? "Copied!" : "Copy"}
+                        </button>
+                      </div>
+                      <p className="mono break-all text-xs" style={{ color: "var(--text)" }}>{r.value}</p>
+                      <p className="mt-1 text-xs subtle">{r.note}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </AppShell>
   );
 }

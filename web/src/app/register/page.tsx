@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { persistSession } from "@/lib/useAuth";
+import { AuthShell } from "@/components/AuthShell";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -30,53 +31,54 @@ export default function RegisterPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-neutral-950 text-neutral-100">
-      <form onSubmit={handleSubmit} className="w-full max-w-sm space-y-4 rounded-lg border border-neutral-800 p-8">
-        <h1 className="text-xl font-semibold">Create your account</h1>
-        {error && <p className="rounded bg-red-950 p-2 text-sm text-red-300">{error}</p>}
-        <div className="space-y-1">
-          <label className="text-sm text-neutral-400">Full name</label>
+    <AuthShell
+      title="Create your account"
+      subtitle="Set up your self-hosted inbox in a minute."
+      footer={
+        <>
+          Already have an account?{" "}
+          <Link href="/login" className="link">Sign in</Link>
+        </>
+      }
+    >
+      <form onSubmit={handleSubmit}>
+        {error && <p className="alert alert-danger mb-4">{error}</p>}
+        <div className="field">
+          <label className="label">Full name <span className="subtle">(optional)</span></label>
           <input
             value={fullName}
             onChange={(e) => setFullName(e.target.value)}
-            className="w-full rounded border border-neutral-700 bg-neutral-900 px-3 py-2"
+            className="input"
+            placeholder="Ada Lovelace"
           />
         </div>
-        <div className="space-y-1">
-          <label className="text-sm text-neutral-400">Email</label>
+        <div className="field">
+          <label className="label">Email</label>
           <input
             type="email"
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full rounded border border-neutral-700 bg-neutral-900 px-3 py-2"
+            className="input"
+            placeholder="you@example.com"
           />
         </div>
-        <div className="space-y-1">
-          <label className="text-sm text-neutral-400">Password (min 8 chars)</label>
+        <div className="field">
+          <label className="label">Password <span className="subtle">(min 8 characters)</span></label>
           <input
             type="password"
             required
             minLength={8}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full rounded border border-neutral-700 bg-neutral-900 px-3 py-2"
+            className="input"
+            placeholder="••••••••"
           />
         </div>
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full rounded bg-indigo-600 py-2 font-medium hover:bg-indigo-500 disabled:opacity-50"
-        >
-          {loading ? "Creating account..." : "Create account"}
+        <button type="submit" disabled={loading} className="btn btn-primary btn-lg mt-1 w-full">
+          {loading ? "Creating account…" : "Create account"}
         </button>
-        <p className="text-sm text-neutral-400">
-          Already have an account?{" "}
-          <Link href="/login" className="text-indigo-400 hover:underline">
-            Sign in
-          </Link>
-        </p>
       </form>
-    </main>
+    </AuthShell>
   );
 }
