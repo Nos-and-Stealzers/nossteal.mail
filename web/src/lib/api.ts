@@ -33,13 +33,18 @@ export interface User {
 }
 
 export const api = {
-  getSignupInfo: () => request<{ mailDomain: string | null }>("/api/auth/signup-info"),
+  getSignupInfo: () => request<{ mailDomain: string | null; inviteRequired: boolean }>("/api/auth/signup-info"),
 
-  register: (payload: { username: string; password: string; fullName?: string; email?: string }) =>
+  register: (payload: { username: string; password: string; fullName?: string; email?: string; inviteCode?: string }) =>
     request<{ user: User; token: string; address: string }>("/api/auth/register", {
       method: "POST",
       body: JSON.stringify(payload),
     }),
+
+  listDirectory: () => request<{ entries: DirectoryEntry[] }>("/api/directory"),
+
+  listInvites: () => request<{ invites: Invite[] }>("/api/admin/invites"),
+  createInvite: () => request<{ invite: Invite }>("/api/admin/invites", { method: "POST" }),
 
   login: (identifier: string, password: string) =>
     request<{ user: User; token: string }>("/api/auth/login", {
@@ -243,6 +248,19 @@ export const api = {
       body: JSON.stringify({ currentPassword, newPassword }),
     }),
 };
+
+export interface DirectoryEntry {
+  address: string;
+  display_name: string | null;
+  is_ai_managed: boolean;
+}
+
+export interface Invite {
+  code: string;
+  created_at: string;
+  used_at: string | null;
+  used_by?: string | null;
+}
 
 export interface UserSettings {
   defaultSystemPrompt?: string;

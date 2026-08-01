@@ -11,9 +11,14 @@ function mailDomain(): string | null {
   return process.env.MAIL_DOMAIN?.trim() || null;
 }
 
-// Public info the signup screen needs to show the user their future address.
+function inviteRequired(): boolean {
+  return (process.env.REGISTRATION_MODE?.trim().toLowerCase() || "open") === "invite";
+}
+
+// Public info the signup screen needs to show the user their future address
+// and whether an invite code is required.
 authRouter.get("/signup-info", (_req, res) => {
-  res.json({ mailDomain: mailDomain() });
+  res.json({ mailDomain: mailDomain(), inviteRequired: inviteRequired() });
 });
 
 const registerSchema = z.object({
@@ -23,6 +28,7 @@ const registerSchema = z.object({
     .regex(/^[a-z0-9_-]+$/i, "Username can only contain letters, numbers, underscores, hyphens"),
   password: z.string().min(8),
   fullName: z.string().optional(),
+  inviteCode: z.string().optional(),
   // Only used when the instance has no MAIL_DOMAIN configured.
   email: z.string().email().optional(),
 });
@@ -32,7 +38,19 @@ authRouter.post("/register", async (req, res) => {
   if (!parsed.success) {
     return res.status(400).json({ error: parsed.error.flatten() });
   }
-  const { username, password, fullName, email } = parsed.data;
+  const { username, password, fullName, email, inviteCode } = parsed.data;
+
+  // Invite gating (invite-only instances).
+  let invite: { id: string } | null = null;
+  if (inviteRequired()) {
+    if (!inviteCode) return res.status(403).json({ error: "An invite code is required to sign up" });
+    const found = await pool.query(
+      "SELECT id FROM invites WHERE code = $1 AND used_by_user_id IS NULL",
+      [inviteCode.trim()]
+    );
+    if (!found.rowCount) return res.status(403).json({ error: "Invalid or already-used invite code" });
+    invite = found.rows[0];
+  }
 
   const domain = mailDomain();
   const resolvedEmail = domain ? `${username.toLowerCase()}@${domain}` : email;
@@ -52,6 +70,10 @@ authRouter.post("/register", async (req, res) => {
     [resolvedEmail, passwordHash, fullName ?? null, username]
   );
   const user = result.rows[0];
+
+  if (invite) {
+    await pool.query("UPDATE invites SET used_by_user_id = $1, used_at = NOW() WHERE id = $2", [user.id, invite.id]);
+  }
 
   // Give the new user a native mailbox on the signup domain so they can send
   // and receive right away (delivered internally between local mailboxes).

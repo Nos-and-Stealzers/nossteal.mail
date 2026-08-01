@@ -2,13 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/useAuth";
-import { api, type AdminStats, type AdminUser } from "@/lib/api";
+import { api, type AdminStats, type AdminUser, type Invite } from "@/lib/api";
 import { AppShell } from "@/components/AppShell";
 
 export default function AdminPage() {
   const { user } = useAuth();
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [users, setUsers] = useState<AdminUser[]>([]);
+  const [invites, setInvites] = useState<Invite[]>([]);
+  const [copied, setCopied] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -17,13 +19,30 @@ export default function AdminPage() {
       setError("Admin access required.");
       return;
     }
-    Promise.all([api.getAdminStats(), api.listAdminUsers()])
-      .then(([s, u]) => {
+    Promise.all([api.getAdminStats(), api.listAdminUsers(), api.listInvites()])
+      .then(([s, u, i]) => {
         setStats(s.stats);
         setUsers(u.users);
+        setInvites(i.invites);
       })
       .catch((err) => setError((err as Error).message));
   }, [user]);
+
+  async function generateInvite() {
+    try {
+      await api.createInvite();
+      const { invites } = await api.listInvites();
+      setInvites(invites);
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  }
+
+  async function copyCode(code: string) {
+    await navigator.clipboard.writeText(code);
+    setCopied(code);
+    setTimeout(() => setCopied((c) => (c === code ? null : c)), 1500);
+  }
 
   async function toggleAdmin(target: AdminUser) {
     try {
@@ -48,6 +67,32 @@ export default function AdminPage() {
           <Stat label="Domains" value={stats.domains} />
         </div>
       )}
+
+      <section className="mb-8">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-sm font-semibold uppercase tracking-wide subtle">Invite codes</h2>
+          <button onClick={generateInvite} className="btn btn-primary btn-sm">Generate invite</button>
+        </div>
+        {!invites.length ? (
+          <div className="empty">No invites yet. Generate one to let someone sign up.</div>
+        ) : (
+          <div className="list">
+            {invites.map((inv) => (
+              <div key={inv.code} className="list-row">
+                <span className="mono flex-1 truncate">{inv.code}</span>
+                {inv.used_at ? (
+                  <span className="badge">used{inv.used_by ? ` · ${inv.used_by}` : ""}</span>
+                ) : (
+                  <span className="badge badge-success">available</span>
+                )}
+                {!inv.used_at && (
+                  <button onClick={() => copyCode(inv.code)} className="btn btn-ghost btn-sm">{copied === inv.code ? "Copied!" : "Copy"}</button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
 
       {!!users.length && (
         <>

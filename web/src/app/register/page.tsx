@@ -13,12 +13,20 @@ export default function RegisterPage() {
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
   const [mailDomain, setMailDomain] = useState<string | null>(null);
+  const [inviteRequired, setInviteRequired] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    api.getSignupInfo().then(({ mailDomain }) => setMailDomain(mailDomain)).catch(() => setMailDomain(null));
+    api
+      .getSignupInfo()
+      .then(({ mailDomain, inviteRequired }) => {
+        setMailDomain(mailDomain);
+        setInviteRequired(inviteRequired);
+      })
+      .catch(() => setMailDomain(null));
   }, []);
 
   const cleanUser = username.trim().toLowerCase().replace(/[^a-z0-9_-]/g, "");
@@ -34,6 +42,7 @@ export default function RegisterPage() {
         password,
         fullName: fullName || undefined,
         email: mailDomain ? undefined : email,
+        inviteCode: inviteRequired ? inviteCode.trim() : undefined,
       });
       persistSession(user, token);
       router.push("/inbox");
@@ -99,6 +108,14 @@ export default function RegisterPage() {
           <label className="label">Password <span className="subtle">(min 8 characters)</span></label>
           <input type="password" required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} className="input" placeholder="••••••••" />
         </div>
+
+        {inviteRequired && (
+          <div className="field">
+            <label className="label">Invite code</label>
+            <input required value={inviteCode} onChange={(e) => setInviteCode(e.target.value)} className="input mono" placeholder="nm-xxxxxxxx" />
+            <p className="mt-1 text-xs subtle">This instance is invite-only. Ask the admin for a code.</p>
+          </div>
+        )}
 
         <button type="submit" disabled={loading || !cleanUser} className="btn btn-primary btn-lg mt-1 w-full">
           {loading ? "Creating account…" : "Create account"}

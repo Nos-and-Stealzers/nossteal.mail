@@ -1,9 +1,31 @@
 import { Router } from "express";
+import crypto from "node:crypto";
 import { pool } from "../db/pool.js";
 import { requireAuth, requireAdmin, type AuthedRequest } from "../middleware/auth.js";
 
 export const adminRouter = Router();
 adminRouter.use(requireAuth, requireAdmin);
+
+// ---- Invite codes ----
+
+adminRouter.get("/invites", async (_req: AuthedRequest, res) => {
+  const result = await pool.query(
+    `SELECT i.code, i.created_at, i.used_at, u.username AS used_by
+     FROM invites i LEFT JOIN users u ON u.id = i.used_by_user_id
+     ORDER BY i.created_at DESC`
+  );
+  res.json({ invites: result.rows });
+});
+
+adminRouter.post("/invites", async (req: AuthedRequest, res) => {
+  // Readable, hard-to-guess single-use code, e.g. "nm-8f3ka2".
+  const code = "nm-" + crypto.randomBytes(4).toString("hex");
+  const result = await pool.query(
+    "INSERT INTO invites (code, created_by_user_id) VALUES ($1, $2) RETURNING code, created_at, used_at",
+    [code, req.userId]
+  );
+  res.status(201).json({ invite: result.rows[0] });
+});
 
 adminRouter.get("/stats", async (_req: AuthedRequest, res) => {
   const [users, messages, aiProviders, workflows, domains] = await Promise.all([

@@ -478,3 +478,13 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS settings JSONB NOT NULL DEFAULT '{}':
 ALTER TABLE email_accounts ADD COLUMN IF NOT EXISTS storage_limit_bytes BIGINT NOT NULL DEFAULT 1073741824; -- 1 GB
 ALTER TABLE email_accounts ADD COLUMN IF NOT EXISTS is_ai_managed BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE email_accounts ADD COLUMN IF NOT EXISTS ai_provider_id UUID REFERENCES ai_providers(id) ON DELETE SET NULL;
+
+-- Single-use invite codes for gated (invite-only) registration.
+CREATE TABLE IF NOT EXISTS invites (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  code VARCHAR(64) UNIQUE NOT NULL,
+  created_by_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+  used_by_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+  used_at TIMESTAMP,
+  created_at TIMESTAMP DEFAULT NOW()
+);
