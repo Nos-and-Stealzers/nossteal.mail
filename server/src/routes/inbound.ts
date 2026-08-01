@@ -1,10 +1,13 @@
 import express, { Router } from "express";
+import multer from "multer";
 import { findLocalMailboxes, deliverToLocalMailbox } from "../services/internalDelivery.js";
 
 export const inboundRouter = Router();
 
-// Inbound email webhooks arrive as JSON or form-encoded, depending on the
-// provider (Mailgun routes = urlencoded, generic integrations = JSON).
+// Inbound email webhooks arrive as multipart (Mailgun/SendGrid with fields and
+// attachments), urlencoded, or JSON depending on the provider. Parse all three.
+const uploads = multer({ limits: { fileSize: 25 * 1024 * 1024 } });
+inboundRouter.use(uploads.any());
 inboundRouter.use(express.urlencoded({ extended: true, limit: "25mb" }));
 inboundRouter.use(express.json({ limit: "25mb" }));
 
