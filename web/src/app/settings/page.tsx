@@ -18,14 +18,14 @@ const TABS: { id: Tab; label: string }[] = [
 
 export default function SettingsPage() {
   const [tab, setTab] = useState<Tab>("profile");
-  const [me, setMe] = useState<{ email: string; username: string | null; full_name: string | null; account_type?: string } | null>(null);
+  const [me, setMe] = useState<{ email: string; username: string | null; full_name: string | null; account_type?: string; primary_address?: string } | null>(null);
   const [settings, setSettings] = useState<UserSettings>({});
 
   useEffect(() => {
     const q = new URLSearchParams(window.location.search).get("tab") as Tab | null;
     if (q && TABS.some((t) => t.id === q)) setTab(q);
     api.getMe().then(({ user }) => {
-      setMe({ email: user.email, username: user.username, full_name: user.full_name, account_type: user.account_type });
+      setMe({ email: user.email, username: user.username, full_name: user.full_name, account_type: user.account_type, primary_address: user.primary_address });
       setSettings(user.settings ?? {});
     });
   }, []);
@@ -40,7 +40,7 @@ export default function SettingsPage() {
         ))}
       </div>
 
-      {tab === "profile" && me && <ProfileTab me={me} />}
+      {tab === "profile" && me && <ProfileTab me={me} address={me.primary_address ?? me.email} />}
       {tab === "ai" && <AiTab settings={settings} onSaved={setSettings} />}
       {tab === "appearance" && <AppearanceTab settings={settings} onSaved={setSettings} />}
       {tab === "storage" && <StorageTab accountType={me?.account_type} />}
@@ -53,11 +53,12 @@ function SavedNote({ show }: { show: boolean }) {
   return show ? <span className="badge badge-success ml-2">Saved</span> : null;
 }
 
-function ProfileTab({ me }: { me: { email: string; username: string | null; full_name: string | null } }) {
+function ProfileTab({ me, address }: { me: { email: string; username: string | null; full_name: string | null }; address: string }) {
   const [fullName, setFullName] = useState(me.full_name ?? "");
   const [username, setUsername] = useState(me.username ?? "");
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function save(e: React.FormEvent) {
@@ -70,12 +71,32 @@ function ProfileTab({ me }: { me: { email: string; username: string | null; full
     finally { setBusy(false); }
   }
 
+  async function copyAddress() {
+    await navigator.clipboard.writeText(address);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }
+
   return (
+    <div className="space-y-4">
+      <div className="card card-pad">
+        <div className="flex items-center gap-3">
+          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-base font-semibold" style={{ background: "var(--accent-soft)", color: "var(--accent)" }}>
+            {(me.username ?? address).slice(0, 2).toUpperCase()}
+          </span>
+          <div className="min-w-0">
+            <p className="eyebrow">Your mail address</p>
+            <p className="mono truncate text-lg font-medium">{address}</p>
+          </div>
+          <button onClick={copyAddress} className="btn btn-secondary btn-sm ml-auto shrink-0">{copied ? "Copied!" : "Copy"}</button>
+        </div>
+      </div>
+
     <form onSubmit={save} className="card card-pad">
       <h2 className="mb-4 font-semibold">Profile <SavedNote show={saved} /></h2>
       {error && <p className="alert alert-danger mb-4">{error}</p>}
       <div className="field">
-        <label className="label">Email</label>
+        <label className="label">Login email</label>
         <input value={me.email} disabled className="input" style={{ opacity: 0.7 }} />
       </div>
       <div className="field">
@@ -88,6 +109,7 @@ function ProfileTab({ me }: { me: { email: string; username: string | null; full
       </div>
       <button type="submit" disabled={busy} className="btn btn-primary">{busy ? "Saving…" : "Save profile"}</button>
     </form>
+    </div>
   );
 }
 

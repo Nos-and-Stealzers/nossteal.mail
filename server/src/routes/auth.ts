@@ -7,15 +7,24 @@ import { requireAuth, type AuthedRequest } from "../middleware/auth.js";
 
 export const authRouter = Router();
 
+function mailDomain(): string | null {
+  return process.env.MAIL_DOMAIN?.trim() || null;
+}
+
+// Public info the signup screen needs to show the user their future address.
+authRouter.get("/signup-info", (_req, res) => {
+  res.json({ mailDomain: mailDomain() });
+});
+
 const registerSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(8),
-  fullName: z.string().optional(),
   username: z
     .string()
     .min(3)
-    .regex(/^[a-z0-9_-]+$/i, "Username can only contain letters, numbers, underscores, hyphens")
-    .optional(),
+    .regex(/^[a-z0-9_-]+$/i, "Username can only contain letters, numbers, underscores, hyphens"),
+  password: z.string().min(8),
+  fullName: z.string().optional(),
+  // Only used when the instance has no MAIL_DOMAIN configured.
+  email: z.string().email().optional(),
 });
 
 authRouter.post("/register", async (req, res) => {
@@ -23,25 +32,45 @@ authRouter.post("/register", async (req, res) => {
   if (!parsed.success) {
     return res.status(400).json({ error: parsed.error.flatten() });
   }
-  const { email, password, fullName, username } = parsed.data;
+  const { username, password, fullName, email } = parsed.data;
 
-  const existing = await pool.query(
-    "SELECT id FROM users WHERE email = $1 OR ($2::text IS NOT NULL AND username = $2)",
-    [email, username ?? null]
-  );
+  const domain = mailDomain();
+  const resolvedEmail = domain ? `${username.toLowerCase()}@${domain}` : email;
+  if (!resolvedEmail) {
+    return res.status(400).json({ error: "An email is required (this instance has no signup domain configured)" });
+  }
+
+  const existing = await pool.query("SELECT id FROM users WHERE email = $1 OR username = $2", [resolvedEmail, username]);
   if (existing.rowCount) {
-    return res.status(409).json({ error: "Email or username already registered" });
+    return res.status(409).json({ error: "That username or address is already taken" });
   }
 
   const passwordHash = await bcrypt.hash(password, 12);
   const result = await pool.query(
     `INSERT INTO users (email, password_hash, full_name, username) VALUES ($1, $2, $3, $4)
      RETURNING id, email, username, full_name, is_admin, created_at`,
-    [email, passwordHash, fullName ?? null, username ?? null]
+    [resolvedEmail, passwordHash, fullName ?? null, username]
   );
   const user = result.rows[0];
+
+  // Give the new user a native mailbox on the signup domain so they can send
+  // and receive right away (delivered internally between local mailboxes).
+  let address = resolvedEmail;
+  if (domain) {
+    const dom = await pool.query("SELECT id FROM domains WHERE LOWER(domain_name) = LOWER($1) LIMIT 1", [domain]);
+    if (dom.rowCount) {
+      await pool.query(
+        `INSERT INTO email_accounts (user_id, email_address, display_name, account_kind, domain_id, storage_limit_bytes, is_default)
+         VALUES ($1,$2,$3,'native',$4,$5,TRUE)
+         ON CONFLICT (user_id, email_address) DO NOTHING`,
+        [user.id, resolvedEmail, fullName ?? null, dom.rows[0].id, 1024 * 1024 * 1024]
+      );
+      address = resolvedEmail;
+    }
+  }
+
   const token = signToken(user.id);
-  res.status(201).json({ user, token });
+  res.status(201).json({ user, token, address });
 });
 
 const loginSchema = z.object({
@@ -74,7 +103,14 @@ authRouter.post("/login", async (req, res) => {
 
 authRouter.get("/me", requireAuth, async (req: AuthedRequest, res) => {
   const result = await pool.query(
-    "SELECT id, email, username, full_name, is_admin, account_type, settings, created_at FROM users WHERE id = $1",
+    `SELECT u.id, u.email, u.username, u.full_name, u.is_admin, u.account_type, u.settings, u.created_at,
+            COALESCE(
+              (SELECT email_address FROM email_accounts
+               WHERE user_id = u.id AND account_kind = 'native'
+               ORDER BY is_default DESC, created_at ASC LIMIT 1),
+              u.email
+            ) AS primary_address
+     FROM users u WHERE u.id = $1`,
     [req.userId]
   );
   const user = result.rows[0];

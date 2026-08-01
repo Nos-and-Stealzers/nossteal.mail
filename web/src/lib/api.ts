@@ -33,10 +33,12 @@ export interface User {
 }
 
 export const api = {
-  register: (email: string, password: string, fullName?: string, username?: string) =>
-    request<{ user: User; token: string }>("/api/auth/register", {
+  getSignupInfo: () => request<{ mailDomain: string | null }>("/api/auth/signup-info"),
+
+  register: (payload: { username: string; password: string; fullName?: string; email?: string }) =>
+    request<{ user: User; token: string; address: string }>("/api/auth/register", {
       method: "POST",
-      body: JSON.stringify({ email, password, fullName, username }),
+      body: JSON.stringify(payload),
     }),
 
   login: (identifier: string, password: string) =>
@@ -230,7 +232,7 @@ export const api = {
   deleteAccount: (id: string) => request<void>(`/api/email-accounts/${id}`, { method: "DELETE" }),
 
   // Account & settings
-  getMe: () => request<{ user: User & { account_type?: string; settings?: UserSettings } }>("/api/auth/me"),
+  getMe: () => request<{ user: User & { account_type?: string; settings?: UserSettings; primary_address?: string } }>("/api/auth/me"),
   updateProfile: (payload: { fullName?: string | null; username?: string | null }) =>
     request<{ user: User }>("/api/auth/me", { method: "PATCH", body: JSON.stringify(payload) }),
   updateSettings: (settings: UserSettings) =>
