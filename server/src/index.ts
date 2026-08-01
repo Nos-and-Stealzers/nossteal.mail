@@ -17,6 +17,7 @@ import { billingWebhookRouter } from "./routes/billingWebhook.js";
 import { domainsRouter } from "./routes/domains.js";
 import { adminRouter } from "./routes/admin.js";
 import { directoryRouter } from "./routes/directory.js";
+import { inboundRouter } from "./routes/inbound.js";
 
 const app = express();
 
@@ -45,6 +46,7 @@ app.use("/api/notes", notesRouter);
 app.use("/api/tasks", tasksRouter);
 app.use("/api/workflows", workflowsRouter);
 app.use("/api/directory", directoryRouter);
+app.use("/api/inbound", inboundRouter);
 
 const port = Number(process.env.PORT) || 4000;
 app.listen(port, () => {
