@@ -2,16 +2,19 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { api, type UserSettings, type EmailAccountSummary, type AiProvider, type Subscription } from "@/lib/api";
 import { AppShell } from "@/components/AppShell";
 import { formatBytes, usagePercent } from "@/lib/format";
 
-type Tab = "profile" | "ai" | "appearance" | "storage" | "security";
+type Tab = "profile" | "mail" | "ai" | "appearance" | "notifications" | "storage" | "security";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "profile", label: "Profile" },
+  { id: "mail", label: "Mail" },
   { id: "ai", label: "AI" },
   { id: "appearance", label: "Appearance" },
+  { id: "notifications", label: "Notifications" },
   { id: "storage", label: "Storage & plan" },
   { id: "security", label: "Security" },
 ];
@@ -41,8 +44,10 @@ export default function SettingsPage() {
       </div>
 
       {tab === "profile" && me && <ProfileTab me={me} address={me.primary_address ?? me.email} />}
+      {tab === "mail" && <MailTab settings={settings} onSaved={setSettings} />}
       {tab === "ai" && <AiTab settings={settings} onSaved={setSettings} />}
       {tab === "appearance" && <AppearanceTab settings={settings} onSaved={setSettings} />}
+      {tab === "notifications" && <NotificationsTab settings={settings} onSaved={setSettings} />}
       {tab === "storage" && <StorageTab accountType={me?.account_type} />}
       {tab === "security" && <SecurityTab />}
     </AppShell>
@@ -51,6 +56,80 @@ export default function SettingsPage() {
 
 function SavedNote({ show }: { show: boolean }) {
   return show ? <span className="badge badge-success ml-2">Saved</span> : null;
+}
+
+function Toggle({ on, onClick, label, desc }: { on: boolean; onClick: () => void; label: string; desc?: string }) {
+  return (
+    <div className="flex items-center justify-between py-2">
+      <div className="pr-4">
+        <p className="text-sm font-medium">{label}</p>
+        {desc && <p className="text-xs subtle">{desc}</p>}
+      </div>
+      <button onClick={onClick} className="shrink-0 rounded-full transition-colors" style={{ width: 42, height: 24, background: on ? "var(--accent)" : "var(--border-strong)", position: "relative" }} aria-pressed={on}>
+        <span style={{ position: "absolute", top: 2, left: on ? 20 : 2, width: 20, height: 20, borderRadius: "999px", background: "#fff", transition: "left .15s" }} />
+      </button>
+    </div>
+  );
+}
+
+function MailTab({ settings, onSaved }: { settings: UserSettings; onSaved: (s: UserSettings) => void }) {
+  const [local, setLocal] = useState<UserSettings>(settings);
+  const [accounts, setAccounts] = useState<EmailAccountSummary[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => { setLocal(settings); }, [settings]);
+  useEffect(() => { api.listAccounts().then(({ accounts }) => setAccounts(accounts)).catch(() => {}); }, []);
+
+  function set<K extends keyof UserSettings>(k: K, v: UserSettings[K]) { setLocal((s) => ({ ...s, [k]: v })); }
+  async function save(e: React.FormEvent) {
+    e.preventDefault(); setBusy(true); setSaved(false);
+    const { settings } = await api.updateSettings(local);
+    onSaved(settings); setSaved(true); setBusy(false);
+  }
+
+  return (
+    <form onSubmit={save} className="card card-pad">
+      <h2 className="mb-4 font-semibold">Mail <SavedNote show={saved} /></h2>
+      <div className="field">
+        <label className="label">Default “from” mailbox</label>
+        <select value={local.defaultAccountId ?? ""} onChange={(e) => set("defaultAccountId", e.target.value)} className="select">
+          <option value="">— most recent —</option>
+          {accounts.map((a) => (<option key={a.id} value={a.id}>{a.email_address}</option>))}
+        </select>
+      </div>
+      <div className="field">
+        <label className="label">Signature</label>
+        <textarea rows={3} value={local.signature ?? ""} onChange={(e) => set("signature", e.target.value)} className="textarea" placeholder="— Sent from nossteal.mail" />
+      </div>
+      <div className="border-t pt-2">
+        <Toggle on={!!local.autoMarkRead} onClick={() => set("autoMarkRead", !local.autoMarkRead)} label="Auto-mark read" desc="Mark messages read as soon as you open them." />
+      </div>
+      <button type="submit" disabled={busy} className="btn btn-primary mt-4">{busy ? "Saving…" : "Save mail settings"}</button>
+    </form>
+  );
+}
+
+function NotificationsTab({ settings, onSaved }: { settings: UserSettings; onSaved: (s: UserSettings) => void }) {
+  const [local, setLocal] = useState<UserSettings>(settings);
+  const [saved, setSaved] = useState(false);
+  useEffect(() => { setLocal(settings); }, [settings]);
+  async function set<K extends keyof UserSettings>(k: K, v: UserSettings[K]) {
+    const next = { ...local, [k]: v };
+    setLocal(next);
+    const { settings } = await api.updateSettings(next);
+    onSaved(settings); setSaved(true); setTimeout(() => setSaved(false), 1200);
+  }
+  return (
+    <div className="card card-pad">
+      <h2 className="mb-2 font-semibold">Notifications <SavedNote show={saved} /></h2>
+      <Toggle on={local.notifyNewMail !== false} onClick={() => set("notifyNewMail", !(local.notifyNewMail !== false))} label="New mail" desc="Show a notification when new mail arrives." />
+      <div className="border-t" />
+      <Toggle on={!!local.soundOnNewMail} onClick={() => set("soundOnNewMail", !local.soundOnNewMail)} label="Play a sound" desc="Chime on new mail." />
+      <div className="border-t" />
+      <Toggle on={!!local.notifyAutomation} onClick={() => set("notifyAutomation", !local.notifyAutomation)} label="Automation actions" desc="Notify when the AI acts on your behalf." />
+    </div>
+  );
 }
 
 function ProfileTab({ me, address }: { me: { email: string; username: string | null; full_name: string | null }; address: string }) {
@@ -299,11 +378,16 @@ function StorageTab({ accountType }: { accountType?: string }) {
 }
 
 function SecurityTab() {
+  const router = useRouter();
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [busy, setBusy] = useState(false);
   const [ok, setOk] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [delPw, setDelPw] = useState("");
+  const [delBusy, setDelBusy] = useState(false);
+  const [delError, setDelError] = useState<string | null>(null);
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
@@ -315,19 +399,45 @@ function SecurityTab() {
     finally { setBusy(false); }
   }
 
+  async function deleteAccount(e: React.FormEvent) {
+    e.preventDefault();
+    if (!window.confirm("Permanently delete your account, mailboxes, and all mail? This cannot be undone.")) return;
+    setDelBusy(true); setDelError(null);
+    try {
+      await api.deleteMyAccount(delPw);
+      window.localStorage.removeItem("token");
+      window.localStorage.removeItem("user");
+      router.replace("/");
+    } catch (err) { setDelError((err as Error).message); }
+    finally { setDelBusy(false); }
+  }
+
   return (
-    <form onSubmit={save} className="card card-pad">
-      <h2 className="mb-4 font-semibold">Change password {ok && <span className="badge badge-success ml-2">Updated</span>}</h2>
-      {error && <p className="alert alert-danger mb-4">{error}</p>}
-      <div className="field">
-        <label className="label">Current password</label>
-        <input type="password" required value={current} onChange={(e) => setCurrent(e.target.value)} className="input" />
-      </div>
-      <div className="field">
-        <label className="label">New password <span className="subtle">(min 8 characters)</span></label>
-        <input type="password" required minLength={8} value={next} onChange={(e) => setNext(e.target.value)} className="input" />
-      </div>
-      <button type="submit" disabled={busy} className="btn btn-primary">{busy ? "Updating…" : "Update password"}</button>
-    </form>
+    <div className="space-y-4">
+      <form onSubmit={save} className="card card-pad">
+        <h2 className="mb-4 font-semibold">Change password {ok && <span className="badge badge-success ml-2">Updated</span>}</h2>
+        {error && <p className="alert alert-danger mb-4">{error}</p>}
+        <div className="field">
+          <label className="label">Current password</label>
+          <input type="password" required value={current} onChange={(e) => setCurrent(e.target.value)} className="input" />
+        </div>
+        <div className="field">
+          <label className="label">New password <span className="subtle">(min 8 characters)</span></label>
+          <input type="password" required minLength={8} value={next} onChange={(e) => setNext(e.target.value)} className="input" />
+        </div>
+        <button type="submit" disabled={busy} className="btn btn-primary">{busy ? "Updating…" : "Update password"}</button>
+      </form>
+
+      <form onSubmit={deleteAccount} className="card card-pad" style={{ borderColor: "color-mix(in srgb, var(--danger) 40%, var(--border))" }}>
+        <h2 className="mb-1 font-semibold" style={{ color: "var(--danger)" }}>Danger zone</h2>
+        <p className="mb-4 text-sm muted">Delete your account, all mailboxes, and every message. This can’t be undone.</p>
+        {delError && <p className="alert alert-danger mb-4">{delError}</p>}
+        <div className="field">
+          <label className="label">Confirm your password</label>
+          <input type="password" required value={delPw} onChange={(e) => setDelPw(e.target.value)} className="input" />
+        </div>
+        <button type="submit" disabled={delBusy} className="btn btn-danger">{delBusy ? "Deleting…" : "Delete my account"}</button>
+      </form>
+    </div>
   );
 }

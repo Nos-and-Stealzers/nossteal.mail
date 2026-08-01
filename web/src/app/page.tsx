@@ -29,6 +29,11 @@ export default function Landing() {
             <Mail width={17} height={17} />
           </span>
           <span className="font-semibold tracking-tight">nossteal<span className="muted">.mail</span></span>
+          <nav className="ml-3 hidden items-center gap-1 md:flex">
+            <Link href="/features" className="btn btn-ghost btn-sm">Features</Link>
+            <Link href="/security" className="btn btn-ghost btn-sm">Security</Link>
+            <Link href="/about" className="btn btn-ghost btn-sm">About</Link>
+          </nav>
           <nav className="ml-auto flex items-center gap-2">
             <a href="https://github.com/Nos-and-Stealzers/nossteal.mail" target="_blank" rel="noreferrer" className="btn btn-ghost btn-sm hidden sm:inline-flex">GitHub</a>
             <ThemeToggle />

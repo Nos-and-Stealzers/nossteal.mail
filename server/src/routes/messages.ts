@@ -11,16 +11,24 @@ messagesRouter.use(requireAuth);
 
 messagesRouter.get("/", async (req: AuthedRequest, res) => {
   const folder = typeof req.query.folder === "string" ? req.query.folder : "INBOX";
+  const starredOnly = req.query.starred === "1" || req.query.starred === "true";
   const limit = Math.min(Number(req.query.limit) || 50, 200);
   const offset = Number(req.query.offset) || 0;
 
+  // "Starred" is a cross-folder view; otherwise scope to a single folder.
+  const where = starredOnly
+    ? "user_id = $1 AND is_starred = TRUE AND is_deleted = FALSE"
+    : "user_id = $1 AND folder = $2 AND is_deleted = FALSE";
+  const params = starredOnly ? [req.userId, limit, offset] : [req.userId, folder, limit, offset];
+  const limitIdx = starredOnly ? "$2 OFFSET $3" : "$3 OFFSET $4";
+
   const result = await pool.query(
-    `SELECT id, from_address, to_addresses, subject, date_received, is_read, is_starred, has_attachments
+    `SELECT id, from_address, to_addresses, subject, date_received, is_read, is_starred, has_attachments, folder
      FROM messages
-     WHERE user_id = $1 AND folder = $2 AND is_deleted = FALSE
+     WHERE ${where}
      ORDER BY date_received DESC NULLS LAST
-     LIMIT $3 OFFSET $4`,
-    [req.userId, folder, limit, offset]
+     LIMIT ${limitIdx}`,
+    params
   );
   res.json({ messages: result.rows });
 });
@@ -35,6 +43,36 @@ messagesRouter.get("/:id", async (req: AuthedRequest, res) => {
 
   await pool.query("UPDATE messages SET is_read = TRUE WHERE id = $1", [message.id]);
   res.json({ message });
+});
+
+const updateMessageSchema = z.object({
+  isRead: z.boolean().optional(),
+  isStarred: z.boolean().optional(),
+});
+
+messagesRouter.patch("/:id", async (req: AuthedRequest, res) => {
+  const parsed = updateMessageSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+  const { isRead, isStarred } = parsed.data;
+  const result = await pool.query(
+    `UPDATE messages SET
+       is_read = COALESCE($1, is_read),
+       is_starred = COALESCE($2, is_starred),
+       updated_at = NOW()
+     WHERE id = $3 AND user_id = $4
+     RETURNING id, is_read, is_starred`,
+    [isRead ?? null, isStarred ?? null, req.params.id, req.userId]
+  );
+  if (!result.rowCount) return res.status(404).json({ error: "Message not found" });
+  res.json({ message: result.rows[0] });
+});
+
+messagesRouter.delete("/:id", async (req: AuthedRequest, res) => {
+  await pool.query(
+    "UPDATE messages SET is_deleted = TRUE, updated_at = NOW() WHERE id = $1 AND user_id = $2",
+    [req.params.id, req.userId]
+  );
+  res.status(204).send();
 });
 
 const sendSchema = z.object({

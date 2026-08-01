@@ -183,6 +183,21 @@ authRouter.put("/me/settings", requireAuth, async (req: AuthedRequest, res) => {
   res.json({ settings: result.rows[0].settings });
 });
 
+const deleteAccountSchema = z.object({ password: z.string().min(1) });
+
+authRouter.delete("/me", requireAuth, async (req: AuthedRequest, res) => {
+  const parsed = deleteAccountSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+  const result = await pool.query("SELECT password_hash FROM users WHERE id = $1", [req.userId]);
+  const row = result.rows[0];
+  if (!row || !(await bcrypt.compare(parsed.data.password, row.password_hash))) {
+    return res.status(401).json({ error: "Password is incorrect" });
+  }
+  // Cascades to the user's mailboxes, messages, providers, etc.
+  await pool.query("DELETE FROM users WHERE id = $1", [req.userId]);
+  res.json({ ok: true });
+});
+
 const changePasswordSchema = z.object({
   currentPassword: z.string().min(1),
   newPassword: z.string().min(8),

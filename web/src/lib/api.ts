@@ -72,10 +72,20 @@ export const api = {
   syncAccount: (id: string) =>
     request<{ synced: number }>(`/api/email-accounts/${id}/sync`, { method: "POST" }),
 
-  listMessages: (folder = "INBOX") =>
-    request<{ messages: MessageSummary[] }>(`/api/messages?folder=${encodeURIComponent(folder)}`),
+  listMessages: (folder = "INBOX", starred = false) =>
+    request<{ messages: MessageSummary[] }>(
+      `/api/messages?folder=${encodeURIComponent(folder)}${starred ? "&starred=1" : ""}`
+    ),
 
   getMessage: (id: string) => request<{ message: MessageDetail }>(`/api/messages/${id}`),
+
+  updateMessage: (id: string, payload: { isRead?: boolean; isStarred?: boolean }) =>
+    request<{ message: { id: string; is_read: boolean; is_starred: boolean } }>(`/api/messages/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
+
+  deleteMessage: (id: string) => request<void>(`/api/messages/${id}`, { method: "DELETE" }),
 
   sendMessage: (payload: SendMessagePayload) =>
     request<{ messageId: string }>("/api/messages/send", {
@@ -247,6 +257,9 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ currentPassword, newPassword }),
     }),
+
+  deleteMyAccount: (password: string) =>
+    request<{ ok: boolean }>("/api/auth/me", { method: "DELETE", body: JSON.stringify({ password }) }),
 };
 
 export interface DirectoryEntry {
@@ -270,6 +283,14 @@ export interface UserSettings {
   aiSignature?: string;
   compactInbox?: boolean;
   accentColor?: string;
+  // Mail
+  signature?: string;
+  autoMarkRead?: boolean;
+  defaultAccountId?: string;
+  // Notifications
+  notifyNewMail?: boolean;
+  notifyAutomation?: boolean;
+  soundOnNewMail?: boolean;
 }
 
 export interface AiProvider {
@@ -504,6 +525,7 @@ export interface MessageSummary {
   is_read: boolean;
   is_starred: boolean;
   has_attachments: boolean;
+  folder?: string;
 }
 
 export interface MessageDetail extends MessageSummary {
