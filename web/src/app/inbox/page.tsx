@@ -55,6 +55,11 @@ export default function InboxPage() {
         <h1 className="text-lg font-semibold">nossteal.mail</h1>
         <nav className="flex items-center gap-4 text-sm">
           <span className="text-neutral-400">{user?.email}</span>
+          {user?.is_admin && (
+            <Link href="/admin" className="text-emerald-400 hover:underline">
+              Admin
+            </Link>
+          )}
           <Link href="/accounts" className="text-indigo-400 hover:underline">
             Accounts
           </Link>

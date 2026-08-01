@@ -15,6 +15,7 @@ import { workflowsRouter } from "./routes/workflows.js";
 import { billingRouter } from "./routes/billing.js";
 import { billingWebhookRouter } from "./routes/billingWebhook.js";
 import { domainsRouter } from "./routes/domains.js";
+import { adminRouter } from "./routes/admin.js";
 
 const app = express();
 
@@ -30,6 +31,7 @@ app.get("/health", (_req, res) => res.json({ status: "ok" }));
 
 app.use("/api/billing", billingRouter);
 app.use("/api/domains", domainsRouter);
+app.use("/api/admin", adminRouter);
 app.use("/api/auth", authRouter);
 app.use("/api/email-accounts", emailAccountsRouter);
 app.use("/api/messages", messagesRouter);

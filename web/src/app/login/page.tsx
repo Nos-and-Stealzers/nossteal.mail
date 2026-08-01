@@ -8,7 +8,7 @@ import { persistSession } from "@/lib/useAuth";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -18,7 +18,7 @@ export default function LoginPage() {
     setError(null);
     setLoading(true);
     try {
-      const { user, token } = await api.login(email, password);
+      const { user, token } = await api.login(identifier, password);
       persistSession(user, token);
       router.push("/inbox");
     } catch (err) {
@@ -34,12 +34,11 @@ export default function LoginPage() {
         <h1 className="text-xl font-semibold">Sign in to nossteal.mail</h1>
         {error && <p className="rounded bg-red-950 p-2 text-sm text-red-300">{error}</p>}
         <div className="space-y-1">
-          <label className="text-sm text-neutral-400">Email</label>
+          <label className="text-sm text-neutral-400">Email or username</label>
           <input
-            type="email"
             required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            value={identifier}
+            onChange={(e) => setIdentifier(e.target.value)}
             className="w-full rounded border border-neutral-700 bg-neutral-900 px-3 py-2"
           />
         </div>

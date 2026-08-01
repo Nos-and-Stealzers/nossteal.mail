@@ -27,20 +27,30 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 export interface User {
   id: string;
   email: string;
+  username: string | null;
   full_name: string | null;
+  is_admin: boolean;
 }
 
 export const api = {
-  register: (email: string, password: string, fullName?: string) =>
+  register: (email: string, password: string, fullName?: string, username?: string) =>
     request<{ user: User; token: string }>("/api/auth/register", {
       method: "POST",
-      body: JSON.stringify({ email, password, fullName }),
+      body: JSON.stringify({ email, password, fullName, username }),
     }),
 
-  login: (email: string, password: string) =>
+  login: (identifier: string, password: string) =>
     request<{ user: User; token: string }>("/api/auth/login", {
       method: "POST",
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ identifier, password }),
+    }),
+
+  getAdminStats: () => request<{ stats: AdminStats }>("/api/admin/stats"),
+  listAdminUsers: () => request<{ users: AdminUser[] }>("/api/admin/users"),
+  setUserAdmin: (id: string, isAdmin: boolean) =>
+    request<{ user: AdminUser }>(`/api/admin/users/${id}/admin`, {
+      method: "PATCH",
+      body: JSON.stringify({ isAdmin }),
     }),
 
   listAccounts: () =>
@@ -292,6 +302,25 @@ export interface WorkflowExecution {
   step_results: { type: string; status: "success" | "error"; detail?: unknown; error?: string }[];
   started_at: string;
   finished_at: string | null;
+}
+
+export interface AdminStats {
+  users: number;
+  messages: number;
+  aiProviders: number;
+  workflows: number;
+  domains: number;
+}
+
+export interface AdminUser {
+  id: string;
+  email: string;
+  username: string | null;
+  full_name: string | null;
+  account_type: string;
+  subscription_status: string;
+  is_admin: boolean;
+  created_at: string;
 }
 
 export interface DnsRecord {

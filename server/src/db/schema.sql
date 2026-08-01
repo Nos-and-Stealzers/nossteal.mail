@@ -463,3 +463,8 @@ ALTER TABLE email_accounts ALTER COLUMN smtp_username DROP NOT NULL;
 ALTER TABLE email_accounts ALTER COLUMN smtp_password_encrypted DROP NOT NULL;
 ALTER TABLE email_accounts ADD COLUMN IF NOT EXISTS account_kind VARCHAR(20) NOT NULL DEFAULT 'external'; -- 'external', 'native'
 ALTER TABLE email_accounts ADD COLUMN IF NOT EXISTS domain_id UUID REFERENCES domains(id) ON DELETE CASCADE;
+
+-- Admin
+
+ALTER TABLE users ADD COLUMN IF NOT EXISTS username VARCHAR(100) UNIQUE;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT FALSE;
