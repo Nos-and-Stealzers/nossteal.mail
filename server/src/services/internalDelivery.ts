@@ -28,6 +28,23 @@ export async function findLocalMailboxes(addresses: string[]): Promise<Map<strin
   return map;
 }
 
+/**
+ * Catch-all recipient for a hosted domain: the oldest real (non-AI) mailbox on
+ * it. Lets external mail to any address @domain land somewhere instead of being
+ * dropped when the exact mailbox doesn't exist.
+ */
+export async function findCatchAllForDomain(domain: string): Promise<LocalMailbox | null> {
+  const { rows } = await pool.query(
+    `SELECT id, user_id, email_address, storage_limit_bytes
+     FROM email_accounts
+     WHERE account_kind = 'native' AND LOWER(email_address) LIKE '%@' || LOWER($1)
+     ORDER BY is_ai_managed ASC, created_at ASC
+     LIMIT 1`,
+    [domain]
+  );
+  return rows[0] ?? null;
+}
+
 async function isOverQuota(accountId: string, limitBytes: number): Promise<boolean> {
   if (!limitBytes || limitBytes <= 0) return false;
   const { rows } = await pool.query(

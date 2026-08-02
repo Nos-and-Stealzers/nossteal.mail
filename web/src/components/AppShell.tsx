@@ -22,7 +22,7 @@ const groups: { title: string; items: NavItem[] }[] = [
   },
   {
     title: "Accounts",
-    items: [{ href: "/accounts", label: "Email accounts", icon: Users }],
+    items: [{ href: "/accounts", label: "Mailboxes", icon: Users }],
   },
   {
     title: "AI",
