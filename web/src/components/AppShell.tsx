@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/useAuth";
+import { api } from "@/lib/api";
 import { ThemeToggle } from "./ThemeToggle";
 import {
   Inbox, Pen, Users, Globe, Sparkles, Server, Plug, Note, Check, Flow,
@@ -57,6 +58,11 @@ export function AppShell({
   const { user, loading, logout } = useAuth();
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const [address, setAddress] = useState<string | null>(null);
+
+  useEffect(() => {
+    api.getMe().then(({ user }) => setAddress(user.primary_address ?? user.email)).catch(() => {});
+  }, []);
 
   if (loading || !user) return null;
 
@@ -114,7 +120,7 @@ export function AppShell({
           </span>
           <div className="min-w-0 flex-1">
             <div className="truncate text-sm font-medium">{user.username ?? "Account"}</div>
-            <div className="truncate text-xs subtle">{user.email}</div>
+            <div className="truncate text-xs subtle">{address ?? user.email}</div>
           </div>
         </div>
       </div>
