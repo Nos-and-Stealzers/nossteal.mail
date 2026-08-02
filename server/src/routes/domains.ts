@@ -59,12 +59,20 @@ domainsRouter.post("/", async (req: AuthedRequest, res) => {
 
   const keypair = generateDkimKeypair();
 
-  const result = await pool.query(
-    `INSERT INTO domains (user_id, domain_name, dkim_private_key_encrypted, dkim_public_key_pem)
-     VALUES ($1,$2,$3,$4)
-     RETURNING id, domain_name, dkim_selector, dkim_public_key_pem, created_at`,
-    [req.userId, parsed.data.domainName.toLowerCase(), encryptSecret(keypair.privateKeyPem), keypair.publicKeyPem]
-  );
+  let result;
+  try {
+    result = await pool.query(
+      `INSERT INTO domains (user_id, domain_name, dkim_private_key_encrypted, dkim_public_key_pem)
+       VALUES ($1,$2,$3,$4)
+       RETURNING id, domain_name, dkim_selector, dkim_public_key_pem, created_at`,
+      [req.userId, parsed.data.domainName.toLowerCase(), encryptSecret(keypair.privateKeyPem), keypair.publicKeyPem]
+    );
+  } catch (err) {
+    if ((err as { code?: string }).code === "23505") {
+      return res.status(409).json({ error: "You've already added that domain" });
+    }
+    return res.status(500).json({ error: "Could not add domain" });
+  }
   const domain = result.rows[0];
 
   res.status(201).json({

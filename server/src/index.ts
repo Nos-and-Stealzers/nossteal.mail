@@ -48,6 +48,14 @@ app.use("/api/workflows", workflowsRouter);
 app.use("/api/directory", directoryRouter);
 app.use("/api/inbound", inboundRouter);
 
+// Safety net: never let a single unhandled error take the whole server down.
+process.on("unhandledRejection", (err) => {
+  console.error("Unhandled rejection:", err);
+});
+process.on("uncaughtException", (err) => {
+  console.error("Uncaught exception:", err);
+});
+
 const port = Number(process.env.PORT) || 4000;
 app.listen(port, () => {
   console.log(`nossteal.mail server listening on port ${port}`);
