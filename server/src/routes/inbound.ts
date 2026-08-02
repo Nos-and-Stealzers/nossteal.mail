@@ -1,11 +1,13 @@
 import express, { Router } from "express";
 import multer from "multer";
+import { simpleParser } from "mailparser";
 import { findLocalMailboxes, deliverToLocalMailbox, findCatchAllForDomain } from "../services/internalDelivery.js";
 
 export const inboundRouter = Router();
 
-// Inbound email webhooks arrive as multipart (Mailgun/SendGrid with fields and
-// attachments), urlencoded, or JSON depending on the provider. Parse all three.
+// Inbound email arrives as: raw RFC822 (our Cloudflare email worker posts this),
+// multipart (Mailgun/SendGrid), urlencoded, or JSON. Parse all of them.
+inboundRouter.use(express.raw({ type: ["message/rfc822", "application/octet-stream"], limit: "25mb" }));
 const uploads = multer({ limits: { fileSize: 25 * 1024 * 1024 } });
 inboundRouter.use(uploads.any());
 inboundRouter.use(express.urlencoded({ extended: true, limit: "25mb" }));
@@ -27,6 +29,31 @@ function extractAddress(input: string): string {
   return (m ? m[1] : input).trim().replace(/^mailto:/i, "");
 }
 
+// Normalize a field (string, array, or mailparser-style {value:[{address}],text})
+// into a list of bare email addresses. Handles SendGrid/Mailgun (flat strings)
+// and Forward Email (nested objects) alike.
+/* eslint-disable @typescript-eslint/no-explicit-any */
+function toAddresses(v: any): string[] {
+  if (!v) return [];
+  if (typeof v === "string") return v.split(",").map(extractAddress).filter(Boolean);
+  if (Array.isArray(v)) return v.flatMap(toAddresses);
+  if (typeof v === "object") {
+    if (Array.isArray(v.value)) return v.value.map((x: any) => x?.address || x).filter(Boolean).map(extractAddress);
+    if (typeof v.address === "string") return [extractAddress(v.address)];
+    if (typeof v.text === "string") return v.text.split(",").map(extractAddress).filter(Boolean);
+  }
+  return [];
+}
+
+function firstString(...vals: any[]): string | undefined {
+  for (const v of vals) {
+    if (typeof v === "string" && v.trim()) return v;
+    if (v && typeof v === "object" && typeof v.text === "string" && v.text.trim()) return v.text;
+  }
+  return undefined;
+}
+/* eslint-enable @typescript-eslint/no-explicit-any */
+
 /**
  * Receives external mail from an inbound email service (Mailgun inbound route,
  * SendGrid Inbound Parse forwarding JSON, etc.) and drops it into the matching
@@ -41,16 +68,39 @@ inboundRouter.post("/:token", async (req, res) => {
     return res.status(403).json({ error: "Forbidden" });
   }
 
-  const body = (req.body ?? {}) as Body;
-  const rawTo = pick(body, ["to", "recipient", "To", "envelope_to"]);
-  const rawFrom = pick(body, ["from", "sender", "From"]) ?? "unknown@unknown";
-  const subject = pick(body, ["subject", "Subject"]) ?? "(no subject)";
-  const text = pick(body, ["text", "body-plain", "plain", "stripped-text", "email"]) ?? null;
-  const html = pick(body, ["html", "body-html", "stripped-html"]) ?? null;
+  let addresses: string[];
+  let rawFrom: string;
+  let subject: string;
+  let text: string | null;
+  let html: string | null;
 
-  if (!rawTo) return res.status(400).json({ error: "Missing recipient" });
+  if (Buffer.isBuffer(req.body)) {
+    // Raw RFC822 posted by our Cloudflare email worker. The envelope recipient
+    // (X-Envelope-To) is authoritative for which mailbox this belongs to.
+    const parsed = await simpleParser(req.body);
+    const envTo = req.header("x-envelope-to");
+    addresses = envTo ? [extractAddress(envTo)] : toAddresses(parsed.to);
+    rawFrom = req.header("x-envelope-from") || parsed.from?.text || "unknown@unknown";
+    subject = parsed.subject || "(no subject)";
+    text = parsed.text ?? null;
+    html = typeof parsed.html === "string" ? parsed.html : null;
+  } else {
+    const body = (req.body ?? {}) as Body;
+    addresses = [
+      ...toAddresses(body.recipients),
+      ...toAddresses(body.to),
+      ...toAddresses(body.To),
+      ...toAddresses(pick(body, ["recipient", "envelope_to"])),
+    ].filter(Boolean);
+    rawFrom = firstString(pick(body, ["from", "sender", "From"]), body.from, body.sender) ?? "unknown@unknown";
+    subject = firstString(pick(body, ["subject", "Subject"]), body.subject) ?? "(no subject)";
+    text = firstString(pick(body, ["text", "body-plain", "plain", "stripped-text"]), body.text) ?? null;
+    html = firstString(pick(body, ["html", "body-html", "stripped-html"]), body.html) ?? null;
+  }
 
-  const addresses = rawTo.split(",").map(extractAddress).filter(Boolean);
+  console.log(`[inbound] hit: recipients=${addresses.join("|")} from=${rawFrom} subject=${subject}`);
+
+  if (!addresses.length) return res.status(200).json({ ok: true, delivered: false, reason: "No recipient parsed" });
   const mailboxes = await findLocalMailboxes(addresses);
   const message = { fromAddress: extractAddress(rawFrom), subject, html, text };
 
